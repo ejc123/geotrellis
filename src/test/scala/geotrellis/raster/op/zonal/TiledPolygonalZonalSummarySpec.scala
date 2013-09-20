@@ -144,6 +144,16 @@ class TiledPolygonalZonalSummarySpec extends FunSpec with ShouldMatchers {
       val meanDResult = server.run(meanDOp)
       meanDResult should equal (1.6666666666666667)
 
+      val tileMedians = zonal.summary.Median.createTileResults(rData, rasterExtent)
+      val medianOp = zonal.summary.Median(raster, zone, tileMedians)
+      val medianResult = server.run(medianOp)
+      medianResult should equal (2)
+
+      val tileMediansD = zonal.summary.MedianDouble.createTileResults(rData, rasterExtent)
+      val medianDOp = zonal.summary.MedianDouble(raster, zone, tileMediansD)
+      val medianDResult = server.run(medianDOp)
+      medianDResult should equal (2.0)
+
       // Test non-intersecting polygons (issue #412)
       val nonintersecting = Extent(100,120,100,120).asFeature(())
       val sumOp2 = zonal.summary.Sum(raster, nonintersecting, tileSums)
