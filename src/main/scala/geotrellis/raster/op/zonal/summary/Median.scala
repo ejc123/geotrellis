@@ -10,17 +10,20 @@ import geotrellis.raster.TiledRasterData
 import scala.util.Sorting
 
 case class IntMedian(values: Array[Int]) {
-  def median = if (values.length == 0) {
-    geotrellis.NODATA
-  } else {
-    if (values.length % 2 == 0) {
-      (values(values.length / 2) + values(values.length / 2 - 1)) / 2
+  def median = {
+    Sorting.quickSort(values)
+    if (values.length == 0) {
+      geotrellis.NODATA
     } else {
-      values(values.length / 2)
+      if (values.length % 2 == 0) {
+        (values(values.length / 2) + values(values.length / 2 - 1)) / 2
+      } else {
+        values(values.length / 2)
+      }
     }
   }
 
-  def +(b: IntMedian) = IntMedian((values ++ b.values).sorted)
+  def +(b: IntMedian) = IntMedian((values ++ b.values))
 }
 
 object Median {
@@ -35,7 +38,7 @@ object Median {
 
   def medianRaster(r: Raster): Int = medianTiledRaster(r).median
 
-  def medianTiledRaster(r: Raster): IntMedian = IntMedian(r.toArray.sorted)
+  def medianTiledRaster(r: Raster): IntMedian = IntMedian(r.toArray)
 }
 
 /**
@@ -55,47 +58,44 @@ case class Median[DD](r: Op[Raster], zonePolygon: Op[Polygon[DD]], tileResults: 
 
   def handlePartialTileIntersection(rOp: Op[Raster], gOp: Op[Geometry[D]]) =
     rOp.flatMap(r => gOp.flatMap(g => {
-      var values: Array[Int] = new Array[Int](0)
+      var values: Array[Int] = Array[Int]()
       val f = new Callback[Geometry, D] {
         def apply(col: Int, row: Int, g: Geometry[D]) {
           val z = r.get(col, row)
-          if (z != NODATA) {
             values = values :+ z
-          }
         }
       }
 
       geotrellis.feature.rasterize.Rasterizer.foreachCellByFeature(
         g,
         r.rasterExtent)(f)
-      IntMedian(values.sorted)
+      IntMedian(values)
     }))
 
   def handleFullTile(rOp: Op[Raster]) = rOp.map(r =>
-    tileResults.get(r.rasterExtent).getOrElse({
-      var values = new Array[Int](0)
-      r.force.foreach((x: Int) => if (x != NODATA) values = values :+ x)
-      IntMedian(values.sorted)
-    }))
+    tileResults.get(r.rasterExtent).getOrElse( IntMedian(r.toArray) ))
 
 
-  def handleNoDataTile = IntMedian(new Array[Int](0))
+  def handleNoDataTile = IntMedian(Array[Int](geotrellis.NODATA))
 
-  def reducer(mapResults: List[IntMedian]): Int = mapResults.foldLeft(IntMedian(new Array[Int](0)))(_ + _).median
+  def reducer(mapResults: List[IntMedian]): Int = mapResults.foldLeft(IntMedian(Array[Int]()))(_ + _).median
 }
 
 case class DoubleMedian(values: Array[Double]) {
-  def median = if (values.length == 0) {
-    geotrellis.NODATA
-  } else {
-    if (values.length % 2 == 0) {
-      (values(values.length / 2) + values(values.length / 2 - 1)) / 2
+  def median = {
+    Sorting.quickSort(values)
+    if (values.length == 0) {
+      geotrellis.NODATA
     } else {
-      values(values.length / 2)
+      if (values.length % 2 == 0) {
+        (values(values.length / 2) + values(values.length / 2 - 1)) / 2
+      } else {
+        values(values.length / 2)
+      }
     }
   }
 
-  def +(b: DoubleMedian) = DoubleMedian((values ++ b.values).sorted)
+  def +(b: DoubleMedian) = DoubleMedian((values ++ b.values))
 }
 
 object MedianDouble {
@@ -109,7 +109,7 @@ object MedianDouble {
 
   def medianRaster(r: Raster): Double = medianTiledRaster(r).median
 
-  def medianTiledRaster(r: Raster): DoubleMedian = DoubleMedian(r.toArrayDouble.sorted)
+  def medianTiledRaster(r: Raster): DoubleMedian = DoubleMedian(r.toArrayDouble)
 }
 
 /**
@@ -127,30 +127,26 @@ case class MedianDouble[DD](r: Op[Raster], zonePolygon: Op[Polygon[DD]], tileRes
 
   def handlePartialTileIntersection(rOp: Op[Raster], gOp: Op[Geometry[D]]) = {
     rOp.flatMap(r => gOp.flatMap(g => {
-      var values = new Array[Double](0)
+      var values = Array[Double]()
       val f = new Callback[Geometry, D] {
         def apply(col: Int, row: Int, g: Geometry[D]) {
           val z = r.getDouble(col, row)
-          if (!java.lang.Double.isNaN(z)) {
+          // if (!java.lang.Double.isNaN(z)) {
             values = values :+ z
-          }
+          // }
         }
       }
       geotrellis.feature.rasterize.Rasterizer.foreachCellByFeature(
         g,
         r.rasterExtent)(f)
-      DoubleMedian(values.sorted)
+      DoubleMedian(values)
     }))
   }
 
   def handleFullTile(rOp: Op[Raster]) = rOp.map(r =>
-    tileResults.get(r.rasterExtent).getOrElse({
-      var values = new Array[Double](0)
-      r.force.foreachDouble((x: Double) => if (!java.lang.Double.isNaN(x))  values = values :+ x.toDouble)
-      DoubleMedian(values.sorted)
-    }))
+    tileResults.get(r.rasterExtent).getOrElse( DoubleMedian(r.toArrayDouble) ))
 
-  def handleNoDataTile = DoubleMedian(new Array[Double](0))
+  def handleNoDataTile = DoubleMedian(Array[Double](Double.NaN))
 
-  def reducer(mapResults: List[DoubleMedian]): Double = mapResults.foldLeft(DoubleMedian(new Array[Double](0)))(_ + _).median
+  def reducer(mapResults: List[DoubleMedian]): Double = mapResults.foldLeft(DoubleMedian(Array[Double]()))(_ + _).median
 }
