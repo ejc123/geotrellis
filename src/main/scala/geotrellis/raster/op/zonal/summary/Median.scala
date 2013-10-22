@@ -8,8 +8,9 @@ import scala.math.{max, min}
 import geotrellis.raster.TileArrayRasterData
 import geotrellis.raster.TiledRasterData
 import scala.util.Sorting
+import scala.collection.mutable.ArrayBuffer
 
-case class IntMedian(values: Array[Int]) {
+case class IntMedian(var values: Array[Int]) {
   def median = {
     Sorting.quickSort(values)
     if (values.length == 0) {
@@ -23,7 +24,7 @@ case class IntMedian(values: Array[Int]) {
     }
   }
 
-  def +(b: IntMedian) = IntMedian((values ++ b.values))
+  def +(b: IntMedian) = { values = b.values ++: values; this }
 }
 
 object Median {
@@ -58,11 +59,11 @@ case class Median[DD](r: Op[Raster], zonePolygon: Op[Polygon[DD]], tileResults: 
 
   def handlePartialTileIntersection(rOp: Op[Raster], gOp: Op[Geometry[D]]) =
     rOp.flatMap(r => gOp.flatMap(g => {
-      var values: Array[Int] = Array[Int]()
+      val values: ArrayBuffer[Int] = ArrayBuffer[Int]()
       val f = new Callback[Geometry, D] {
         def apply(col: Int, row: Int, g: Geometry[D]) {
           val z = r.get(col, row)
-            values = values :+ z
+            z +=: values
         }
       }
 
