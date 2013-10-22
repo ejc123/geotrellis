@@ -145,9 +145,10 @@ trait TiledRasterData extends RasterData with Serializable {
       getTile(c, r).foreach(z => f(z))
   }
 
-  override def asArray:Option[ArrayRasterData] = {
-    if (lengthLong > 2147483647L) { None }
-    else {
+  override def asArray:ArrayRasterData = {
+    if (lengthLong > 2147483647L) { 
+      sys.error("This tiled raster is too big to convert into an array.") 
+    } else {
       val len = length
       val d = IntArrayRasterData.ofDim(tileLayout.totalCols, tileLayout.totalRows)
       cfor(0)(_ < tileLayout.tileCols, _ + 1) { tcol =>
@@ -162,13 +163,15 @@ trait TiledRasterData extends RasterData with Serializable {
           }
         }
       }
-      Some(d)
+      d
     }
   }
 
+  def asTiledRasterData = this
+
   def force = mutable
 
-  def mutable:Option[MutableRasterData] = asArray.flatMap(_.mutable)
+  def mutable:MutableRasterData = asArray.mutable
 
   def get(col:Int, row:Int) = {
     val tcol = col / pixelCols
@@ -229,7 +232,7 @@ case class TileSetRasterData(basePath:String,
 
   def asTileArray:TileArrayRasterData = {
     val re = loader.rasterExtent
-    TileArrayRasterData(getTiles(re).toArray,tileLayout,re)
+    TileArrayRasterData(getTiles(re).toArray,tileLayout)
   }
 }
 
@@ -239,8 +242,9 @@ case class TileSetRasterData(basePath:String,
  * Rasters.
  */
 class TileArrayRasterData(val tiles:Array[Raster],
-                          val tileLayout:TileLayout,
-                          val rasterExtent:RasterExtent) extends TiledRasterData  with Serializable {
+                          val tileLayout:TileLayout// ,
+                          // val rasterExtent:RasterExtent
+) extends TiledRasterData  with Serializable {
   val typ = tiles(0).data.getType
   def alloc(cols:Int, rows:Int) = RasterData.allocByType(typ, cols, rows)
   def getType = typ 
@@ -261,8 +265,14 @@ class TileArrayRasterData(val tiles:Array[Raster],
 }
 
 object TileArrayRasterData {
-  def apply(tiles:Array[Raster], tileLayout:TileLayout, rasterExtent:RasterExtent) =
-    new TileArrayRasterData(tiles, tileLayout, rasterExtent)
+  def apply(tiles:Array[Raster], tileLayout:TileLayout// , rasterExtent:RasterExtent
+  ) =
+    new TileArrayRasterData(tiles, tileLayout// , rasterExtent
+    )
+
+  def apply(r:Raster) = 
+    new TileArrayRasterData(Array(r), TileLayout(1,1,r.cols,r.rows)// , r.rasterExtent
+    )
 }
 
 object LazyTiledWrapper {
@@ -397,11 +407,7 @@ case class LazyTiledMap(data:TiledRasterData, g:Int => Int) extends LazyTiledRas
 
   override def map(f:Int => Int) = LazyTiledMap(data, z => f(g(z)))
 
-  override def asArray = 
-    data.asArray match {
-      case Some(a) => a.map(g).asArray
-      case None => None
-    }
+  override def asArray = data.asArray.map(g).asArray
 }
 
 /**
@@ -419,11 +425,7 @@ case class LazyTiledMapIfSet(data:TiledRasterData, g:Int => Int) extends LazyTil
 
   override def mapIfSet(f:Int => Int) = LazyTiledMapIfSet(this, z => f(g(z)))
 
-  override def asArray = 
-    data.asArray match {
-      case Some(a) => a.mapIfSet(g).asArray
-      case None => None
-    }
+  override def asArray = data.asArray.mapIfSet(g).asArray
 }
 
 /**
@@ -439,10 +441,7 @@ extends LazyTiledRasterData {
     logic.Do(data.getTileOp(rl, c, r))(_.convert(typ))
 
   override def asArray = 
-    data.asArray match {
-      case Some(a) => a.convert(typ).asArray
-      case None => None
-    }
+    data.asArray.convert(typ).asArray
 }
 
 
@@ -491,13 +490,6 @@ case class LazyTiledCombine(data1:TiledRasterData, data2:TiledRasterData,
   }
 
   override def asArray = 
-    data1.asArray match {
-      case Some(a1) =>
-        data2.asArray match {
-          case Some(a2) =>
-            a1.combine(a2)(g).asArray
-          case None => None
-        }
-      case None => None
-    }
+    data1.asArray.combine(data2.asArray)(g).asArray
+
 }

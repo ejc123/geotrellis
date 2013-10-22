@@ -7,6 +7,10 @@ import geotrellis.util._
 import geotrellis.data.FileReader
 import geotrellis.data.arg.ArgReader
 
+import dispatch.classic._
+import scala.concurrent._
+import scala.concurrent.Future
+
 /**
  * Represents a Raster Layer that can give detailed information
  * about the Raster it represents, cache the raster, and get the 
@@ -60,6 +64,12 @@ abstract class RasterLayer(val info:RasterLayerInfo) {
 
   def getRaster(extent:Extent):Raster = 
     getRaster(Some(info.rasterExtent.createAligned(extent)))
+
+  def getTile(tileCol:Int, tileRow:Int):Raster
+}
+
+abstract class UntiledRasterLayer(info:RasterLayerInfo) extends RasterLayer(info) {
+  def getTile(tileCol:Int, tileRow:Int) = getRaster(None)
 }
 
 object RasterLayer {
@@ -88,4 +98,15 @@ object RasterLayer {
     } catch {
       case _:Exception => None
     }
+
+  def fromUrl(jsonUrl:String):Option[RasterLayer] = {
+    val h = new Http()
+    try {
+      fromJSON(h(url(jsonUrl) as_str),jsonUrl)
+    } catch {
+      case _:Exception => None
+    } finally {
+      h.shutdown
+    }
+  }
 }

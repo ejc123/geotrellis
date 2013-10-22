@@ -4,8 +4,6 @@ import geotrellis.process._
 import geotrellis.util.Filesystem
 
 class Context(server:Server) {
-  val timer = new Timer()
-
   /**
    * Clients can call the raster path loading functions
    * with either the .json metadata (prefered) or with
@@ -15,6 +13,10 @@ class Context(server:Server) {
   def processPath(path:String):String =
     if(path.endsWith(".arg")) {
       path.substring(0,path.length - 4) + ".json"
+    } else if (path.endsWith("/")) {
+      path.substring(0,path.length - 1) + ".json"
+    } else if (!path.endsWith(".json")){
+      path + ".json"
     } else {
       path
     }
@@ -34,7 +36,7 @@ class Context(server:Server) {
     }
 
   def loadTileSet(path:String):Raster = 
-    RasterLayer.fromPath(path) match {
+    RasterLayer.fromPath(processPath(path)) match {
       case Some(layer) =>
         layer match {
           case tl:TileSetRasterLayer =>
@@ -46,7 +48,7 @@ class Context(server:Server) {
     }
 
   def loadUncachedTileSet(path:String):Raster = 
-    RasterLayer.fromPath(path) match {
+    RasterLayer.fromPath(processPath(path)) match {
       case Some(layer) =>
         layer match {
           case tl:TileSetRasterLayer =>
@@ -120,5 +122,11 @@ class Context(server:Server) {
     RasterLayer.fromPath(processPath(path)) match {
       case Some(layer) => layer.info
       case None => sys.error(s"couldn't get raster layer from path $path")
+    }
+
+  def getRasterUrl(url:String,re:Option[RasterExtent]):Raster = 
+    RasterLayer.fromUrl(url) match {
+      case Some(layer) => layer.getRaster(re)
+      case None => sys.error(s"couldn't get raster layer from URL $url")
     }
 }

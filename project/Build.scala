@@ -34,15 +34,16 @@ object GeotrellisBuild extends Build {
       "org.scala-lang" % "scala-reflect" % "2.10.2",
       "junit" % "junit" % "4.5" % "test",
       "com.vividsolutions" % "jts" % "1.12",
-      "com.typesafe.akka" %% "akka-kernel" % "2.2.0",
-      "com.typesafe.akka" %% "akka-remote" % "2.2.0",
-      "com.typesafe.akka" %% "akka-actor" % "2.2.0",
-"com.typesafe.akka" %% "akka-cluster-experimental" % "2.1.2",
+      "com.typesafe.akka" %% "akka-kernel" % "2.2.1",
+      "com.typesafe.akka" %% "akka-remote" % "2.2.1",
+      "com.typesafe.akka" %% "akka-actor" % "2.2.1",
+      "com.typesafe.akka" %% "akka-cluster" % "2.2.1",
       "asm" % "asm" % "3.3.1",
       "org.codehaus.jackson" % "jackson-core-asl" % "1.6.1",
       "org.codehaus.jackson" % "jackson-mapper-asl" % "1.6.1",
       "org.spire-math" %% "spire" % "0.4.0",
-        "com.nativelibs4java" %% "scalaxy-loops" % "0.3-SNAPSHOT" % "provided"
+      "com.nativelibs4java" %% "scalaxy-loops" % "0.3-SNAPSHOT" % "provided",
+      "net.databinder" %% "dispatch-http" % "0.8.10"
     ),
 
     resolvers ++= Seq(
@@ -66,10 +67,6 @@ object GeotrellisBuild extends Build {
     },
 
     publishArtifact in Test := false,
-    // disable publishing the main API jar
-    publishArtifact in (Compile, packageDoc) := false,
-    // disable publishing the main sources jar
-    publishArtifact in (Compile, packageSrc) := false,
 
     pomIncludeRepository := { _ => false },
     licenses := Seq("GPL3" -> url("http://www.gnu.org/licenses/gpl-3.0-standalone.html")),
@@ -104,11 +101,9 @@ object GeotrellisBuild extends Build {
         "com.sun.jersey" % "jersey-bundle" % "1.11",
         "org.slf4j" % "slf4j-api" % "1.6.0",
         "org.slf4j" % "slf4j-nop" % "1.6.0"
-      ),
-      resolvers ++= Seq(
-      "Geotools" at "http://download.osgeo.org/webdav/geotools/")
+      )
     ).
-    dependsOn(root,geotools)
+    dependsOn(root)
 
   lazy val dev:Project = Project("dev", file("dev")).
     settings(
