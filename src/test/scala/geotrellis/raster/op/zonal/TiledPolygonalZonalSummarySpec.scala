@@ -92,65 +92,75 @@ import scala.language.existentials
 
 //       val zone = Extent(15,10,30,20).asFeature(())
       
-//       val summaryOp = MockTiledPolygonalZonalSummary(raster, zone)
-//       val result = server.run(summaryOp).toSet
+      val summaryOp = MockTiledPolygonalZonalSummary(raster, zone)
+      val result = server.run(summaryOp).toSet
 
-//       val e = Extent(15,10,20,20).asFeature(()).mapGeom(a => {a.normalize(); a})
+      val e = Extent(15,10,20,20).asFeature(()).mapGeom(a => {a.normalize(); a})
 
-//       Set(FullTile(RasterExtent(Extent(20,10,30,20),1,1,10,10)),
-//           PartialTile(RasterExtent(Extent(10,10,20,20),1,1,10,10),e)) should equal (result)
+      Set(FullTile(RasterExtent(Extent(20,10,30,20),1,1,10,10)),
+          PartialTile(RasterExtent(Extent(10,10,20,20),1,1,10,10),e)) should equal (result)
 
-//       val tileSums = zonal.summary.Sum.createTileResults(rData, rasterExtent) 
-//       val sumOp = zonal.summary.Sum(raster, zone, tileSums)
-//       val sumResult = server.run(sumOp)
-//       sumResult should equal (250)
+      val tileSums = zonal.summary.Sum.createTileResults(rData, rasterExtent) 
+      val sumOp = zonal.summary.Sum(raster, zone, tileSums)
+      val sumResult = server.run(sumOp)
+      sumResult should equal (250)
 
-//       val tileSumsD = zonal.summary.SumDouble.createTileResults(rData, rasterExtent) 
-//       val sumDOp = zonal.summary.SumDouble(raster, zone, tileSumsD)
-//       val sumDResult = server.run(sumDOp)
-//       sumDResult should equal (250.0)
+      val tileSumsD = zonal.summary.SumDouble.createTileResults(rData, rasterExtent) 
+      val sumDOp = zonal.summary.SumDouble(raster, zone, tileSumsD)
+      val sumDResult = server.run(sumDOp)
+      sumDResult should equal (250.0)
 
-//       val tileMins = zonal.summary.Min.createTileResults(rData, rasterExtent)
-//       val minOp = zonal.summary.Min(raster, zone, tileMins)
-//       val minResult = server.run(minOp)
-//       minResult should equal (1)
+      val tileMins = zonal.summary.Min.createTileResults(rData, rasterExtent)
+      val minOp = zonal.summary.Min(raster, zone, tileMins)
+      val minResult = server.run(minOp)
+      minResult should equal (1)
 
-//       val tileMinsD = zonal.summary.MinDouble.createTileResults(rData, rasterExtent)
-//       val minDOp = zonal.summary.MinDouble(raster, zone, tileMinsD)
-//       val minDResult = server.run(minDOp)
-//       minDResult should equal (1.0)
+      val tileMinsD = zonal.summary.MinDouble.createTileResults(rData, rasterExtent)
+      val minDOp = zonal.summary.MinDouble(raster, zone, tileMinsD)
+      val minDResult = server.run(minDOp)
+      minDResult should equal (1.0)
 
-//       val tileMaxes = zonal.summary.Max.createTileResults(rData, rasterExtent)
-//       val maxOp = zonal.summary.Max(raster, zone, tileMaxes)
-//       val maxResult = server.run(maxOp)
-//       maxResult should equal (2)
+      val tileMaxes = zonal.summary.Max.createTileResults(rData, rasterExtent)
+      val maxOp = zonal.summary.Max(raster, zone, tileMaxes)
+      val maxResult = server.run(maxOp)
+      maxResult should equal (2)
 
-//       val tileMaxesD = zonal.summary.MaxDouble.createTileResults(rData, rasterExtent)
-//       val maxDOp = zonal.summary.MaxDouble(raster, zone, tileMaxesD)
-//       val maxDResult = server.run(maxDOp)
-//       maxDResult should equal (2.0)
+      val tileMaxesD = zonal.summary.MaxDouble.createTileResults(rData, rasterExtent)
+      val maxDOp = zonal.summary.MaxDouble(raster, zone, tileMaxesD)
+      val maxDResult = server.run(maxDOp)
+      maxDResult should equal (2.0)
 
-//       val tileHistograms = zonal.summary.Histogram.createTileResults(rData, rasterExtent)
-//       val histOp = zonal.summary.Histogram(raster, zone, tileHistograms)
-//       val h = server.run(histOp)
-//       h.getItemCount(1) should equal (50)
-//       h.getItemCount(2) should equal (100)
+      val tileHistograms = zonal.summary.Histogram.createTileResults(rData, rasterExtent)
+      val histOp = zonal.summary.Histogram(raster, zone, tileHistograms)
+      val h = server.run(histOp)
+      h.getItemCount(1) should equal (50)
+      h.getItemCount(2) should equal (100)
 
-//       val tileMeans = zonal.summary.Mean.createTileResults(rData, rasterExtent)
-//       val meanOp = zonal.summary.Mean(raster, zone, tileMeans)
-//       val meanResult = server.run(meanOp)
-//       meanResult should equal (1)
+      val tileMeans = zonal.summary.Mean.createTileResults(rData, rasterExtent)
+      val meanOp = zonal.summary.Mean(raster, zone, tileMeans)
+      val meanResult = server.run(meanOp)
+      meanResult should equal (1)
 
-//       val tileMeansD = zonal.summary.MeanDouble.createTileResults(rData, rasterExtent)
-//       val meanDOp = zonal.summary.MeanDouble(raster, zone, tileMeansD)
-//       val meanDResult = server.run(meanDOp)
-//       meanDResult should equal (1.6666666666666667)
+      val tileMeansD = zonal.summary.MeanDouble.createTileResults(rData, rasterExtent)
+      val meanDOp = zonal.summary.MeanDouble(raster, zone, tileMeansD)
+      val meanDResult = server.run(meanDOp)
+      meanDResult should equal (1.6666666666666667)
 
-//       // Test non-intersecting polygons (issue #412)
-//       val nonintersecting = Extent(100,120,100,120).asFeature(())
-//       val sumOp2 = zonal.summary.Sum(raster, nonintersecting, tileSums)
-//       val sumResult2 = server.run(sumOp2)
-//       sumResult2 should equal (0)
-//     }
-//   }
-// }
+      val tileMedians = zonal.summary.Median.createTileResults(rData, rasterExtent)
+      val medianOp = zonal.summary.Median(raster, zone, tileMedians)
+      val medianResult = server.run(medianOp)
+      medianResult should equal (2)
+
+      val tileMediansD = zonal.summary.MedianDouble.createTileResults(rData, rasterExtent)
+      val medianDOp = zonal.summary.MedianDouble(raster, zone, tileMediansD)
+      val medianDResult = server.run(medianDOp)
+      medianDResult should equal (2.0)
+
+      // Test non-intersecting polygons (issue #412)
+      val nonintersecting = Extent(100,120,100,120).asFeature(())
+      val sumOp2 = zonal.summary.Sum(raster, nonintersecting, tileSums)
+      val sumResult2 = server.run(sumOp2)
+      sumResult2 should equal (0)
+    }
+  }
+}
