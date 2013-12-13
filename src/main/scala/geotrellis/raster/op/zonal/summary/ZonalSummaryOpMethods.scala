@@ -8,6 +8,7 @@ import geotrellis.statistics._
 
 import scala.collection.mutable
 import scalaxy.loops._
+import scala.collection.mutable.ListBuffer
 
 abstract sealed trait TileIntersection
 
@@ -136,12 +137,12 @@ trait ZonalSummaryOpMethods[+Repr <: RasterSource] { self:Repr =>
   def zonalEnumerate[D](p:Op[feature.Polygon[D]]):ValueSource[List[Long]] =
     zonalSummary(Enumerate,p,None)
 
-  def zonalEnumerate[D](p:Op[feature.Polygon[D]],cached:DataSource[Vector[Long],_]):ValueSource[List[Long]] =
+  def zonalEnumerate[D](p:Op[feature.Polygon[D]],cached:DataSource[ListBuffer[Long],_]):ValueSource[List[Long]] =
     zonalSummary(Enumerate,p,Some(cached))
 
   def zonalEnumerateDouble[D](p:Op[feature.Polygon[D]]):ValueSource[List[Double]] =
     zonalSummary(EnumerateDouble,p,None)
 
-  def zonalEnumerateDouble[D](p:Op[feature.Polygon[D]],cached:DataSource[Vector[Double],_]):ValueSource[List[Double]] =
+  def zonalEnumerateDouble[D](p:Op[feature.Polygon[D]],cached:DataSource[ListBuffer[Double],_]):ValueSource[List[Double]] =
     zonalSummary(EnumerateDouble,p,Some(cached))
 }
