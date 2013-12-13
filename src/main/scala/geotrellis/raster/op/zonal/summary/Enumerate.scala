@@ -6,10 +6,10 @@ import geotrellis.feature._
 import geotrellis.feature.rasterize._
 import geotrellis.statistics._
 
-object Enumerate extends TileSummary[Array[Long],List[Long],ValueSource[List[Long]]] {
-  def handlePartialTile[D](pt:PartialTileIntersection[D]):Array[Long] = {
+object Enumerate extends TileSummary[Vector[Long],List[Long],ValueSource[List[Long]]] {
+  def handlePartialTile[D](pt:PartialTileIntersection[D]):Vector[Long] = {
     val PartialTileIntersection(r,polygons) = pt
-    val holder = Array[Long]()
+    val holder = Vector[Long]()
     for(p <- polygons.asInstanceOf[List[Polygon[D]]]) {
       Rasterizer.foreachCellByFeature(p, r.rasterExtent)(
         new Callback[Geometry,D] {
@@ -23,20 +23,20 @@ object Enumerate extends TileSummary[Array[Long],List[Long],ValueSource[List[Lon
     holder
   }
 
-  def handleFullTile(ft:FullTileIntersection):Array[Long] = {
-    val holder = Array[Long]()
+  def handleFullTile(ft:FullTileIntersection):Vector[Long] = {
+    val holder = Vector[Long]()
     ft.tile.foreach(holder :+ _)
     holder
   }
 
-  def converge(ds:DataSource[Array[Long],_]) =
-    ds.reduce(_.toList ++ _.toList)
+  def converge(ds:DataSource[Vector[Long],_]) =
+    ds.reduce(_++_).map(_.toList)
 }
 
-object EnumerateDouble extends TileSummary[Array[Double],List[Double],ValueSource[List[Double]]] {
-  def handlePartialTile[D](pt:PartialTileIntersection[D]):Array[Double] = {
+object EnumerateDouble extends TileSummary[Vector[Double],List[Double],ValueSource[List[Double]]] {
+  def handlePartialTile[D](pt:PartialTileIntersection[D]):Vector[Double] = {
     val PartialTileIntersection(r,polygons) = pt
-    val holder = Array[Double]()
+    val holder = Vector[Double]()
     for(p <- polygons.asInstanceOf[List[Polygon[D]]]) {
       Rasterizer.foreachCellByFeature(p, r.rasterExtent)(
         new Callback[Geometry,D] {
@@ -50,12 +50,12 @@ object EnumerateDouble extends TileSummary[Array[Double],List[Double],ValueSourc
     holder
   }
 
-  def handleFullTile(ft:FullTileIntersection):Array[Double] = {
-    val holder = Array[Double]()
+  def handleFullTile(ft:FullTileIntersection):Vector[Double] = {
+    val holder = Vector[Double]()
     ft.tile.foreachDouble(holder :+ _)
       holder
   }
 
-  def converge(ds:DataSource[Array[Double],_]) =
-    ds.reduce(_.toList ++ _.toList)
+  def converge(ds:DataSource[Vector[Double],_]) =
+    ds.reduce(_++_).map(_.toList)
 }
