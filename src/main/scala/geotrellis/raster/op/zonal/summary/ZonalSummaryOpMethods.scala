@@ -134,10 +134,10 @@ trait ZonalSummaryOpMethods[+Repr <: RasterSource] { self:Repr =>
   def zonalMeanDouble[D](p:Op[feature.Polygon[D]],cached:DataSource[MeanResult,_]):ValueSource[Double] =
     zonalSummary(MeanDouble,p,Some(cached))
 
-  def zonalEnumerate[D](p:Op[feature.Polygon[D]]):ValueSource[List[Long]] =
+  def zonalEnumerate[D](p:Op[feature.Polygon[D]]):ValueSource[List[Int]] =
     zonalSummary(Enumerate,p,None)
 
-  def zonalEnumerate[D](p:Op[feature.Polygon[D]],cached:DataSource[ListBuffer[Long],_]):ValueSource[List[Long]] =
+  def zonalEnumerate[D](p:Op[feature.Polygon[D]],cached:DataSource[ListBuffer[Int],_]):ValueSource[List[Int]] =
     zonalSummary(Enumerate,p,Some(cached))
 
   def zonalEnumerateDouble[D](p:Op[feature.Polygon[D]]):ValueSource[List[Double]] =

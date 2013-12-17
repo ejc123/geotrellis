@@ -6,10 +6,10 @@ import geotrellis.feature._
 import geotrellis.feature.rasterize._
 import collection.mutable.ListBuffer
 
-object Enumerate extends TileSummary[ListBuffer[Long],List[Long],ValueSource[List[Long]]] {
-  def handlePartialTile[D](pt:PartialTileIntersection[D]):ListBuffer[Long] = {
+object Enumerate extends TileSummary[ListBuffer[Int],List[Int],ValueSource[List[Int]]] {
+  def handlePartialTile[D](pt:PartialTileIntersection[D]):ListBuffer[Int] = {
     val PartialTileIntersection(r,polygons) = pt
-    val holder = ListBuffer.empty[Long]
+    val holder = ListBuffer.empty[Int]
     for(p <- polygons.asInstanceOf[List[Polygon[D]]]) {
       Rasterizer.foreachCellByFeature(p, r.rasterExtent)(
         new Callback[Geometry,D] {
@@ -22,13 +22,13 @@ object Enumerate extends TileSummary[ListBuffer[Long],List[Long],ValueSource[Lis
     holder
   }
 
-  def handleFullTile(ft:FullTileIntersection):ListBuffer[Long] = {
-    val holder = ListBuffer.empty[Long]
+  def handleFullTile(ft:FullTileIntersection):ListBuffer[Int] = {
+    val holder = ListBuffer.empty[Int]
     ft.tile.foreach(holder += _)
     holder
   }
 
-  def converge(ds:DataSource[ListBuffer[Long],_]) =
+  def converge(ds:DataSource[ListBuffer[Int],_]) =
     ds.reduce(_++_).map(_.toList)
 }
 
