@@ -8,7 +8,6 @@ import geotrellis.statistics._
 
 import scala.collection.mutable
 import scalaxy.loops._
-import scala.collection.mutable.ListBuffer
 
 abstract sealed trait TileIntersection
 
@@ -134,15 +133,15 @@ trait ZonalSummaryOpMethods[+Repr <: RasterSource] { self:Repr =>
   def zonalMeanDouble[D](p:Op[feature.Polygon[D]],cached:DataSource[MeanResult,_]):ValueSource[Double] =
     zonalSummary(MeanDouble,p,Some(cached))
 
-  def zonalEnumerate[D](p:Op[feature.Polygon[D]]):ValueSource[List[Int]] =
+  def zonalEnumerate[D](p:Op[feature.Polygon[D]]):ValueSource[Array[Int]] =
     zonalSummary(Enumerate,p,None)
 
-  def zonalEnumerate[D](p:Op[feature.Polygon[D]],cached:DataSource[ListBuffer[Int],_]):ValueSource[List[Int]] =
+  def zonalEnumerate[D](p:Op[feature.Polygon[D]],cached:DataSource[mutable.ArrayBuffer[Int],_]):ValueSource[Array[Int]] =
     zonalSummary(Enumerate,p,Some(cached))
 
-  def zonalEnumerateDouble[D](p:Op[feature.Polygon[D]]):ValueSource[List[Double]] =
+  def zonalEnumerateDouble[D](p:Op[feature.Polygon[D]]):ValueSource[Array[Double]] =
     zonalSummary(EnumerateDouble,p,None)
 
-  def zonalEnumerateDouble[D](p:Op[feature.Polygon[D]],cached:DataSource[ListBuffer[Double],_]):ValueSource[List[Double]] =
+  def zonalEnumerateDouble[D](p:Op[feature.Polygon[D]],cached:DataSource[mutable.ArrayBuffer[Double],_]):ValueSource[Array[Double]] =
     zonalSummary(EnumerateDouble,p,Some(cached))
 }
