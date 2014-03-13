@@ -28,8 +28,8 @@ object Enumerate extends TileSummary[mutable.ArrayBuffer[Int],Array[Int],ValueSo
     holder
   }
 
-  def converge(ds:DataSource[mutable.ArrayBuffer[Int],_]) =
-    ds.reduce(_++_).map(_.toArray)
+  def converge(ds:DataSource[mutable.ArrayBuffer[Int],_]) = {
+    ds.foldLeft(mutable.ArrayBuffer.empty[Int])(_++_).map(_.toArray)
 }
 
 object EnumerateDouble extends TileSummary[mutable.ArrayBuffer[Double],Array[Double],ValueSource[Array[Double]]] {
@@ -55,5 +55,5 @@ object EnumerateDouble extends TileSummary[mutable.ArrayBuffer[Double],Array[Dou
   }
 
   def converge(ds:DataSource[mutable.ArrayBuffer[Double],_]) =
-    ds.reduce(_++_).map(_.toArray)
+    ds.foldLeft(mutable.ArrayBuffer.empty[Double])(_++_).map(_.toArray)
 }
