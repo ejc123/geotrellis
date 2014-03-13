@@ -7,14 +7,14 @@ import geotrellis.feature.rasterize._
 import scala.collection.mutable
 
 object Enumerate extends TileSummary[mutable.ArrayBuffer[Int],Array[Int],ValueSource[Array[Int]]] {
-  def handlePartialTile[D](pt:PartialTileIntersection[D]):mutable.ArrayBuffer[Int] = {
-    val PartialTileIntersection(r,polygons) = pt
+  def handlePartialTile[D](pt: PartialTileIntersection[D]): mutable.ArrayBuffer[Int] = {
+    val PartialTileIntersection(r, polygons) = pt
     val holder = mutable.ArrayBuffer.empty[Int]
-    for(p <- polygons.asInstanceOf[List[Polygon[D]]]) {
+    for (p <- polygons.asInstanceOf[List[Polygon[D]]]) {
       Rasterizer.foreachCellByFeature(p, r.rasterExtent)(
-        new Callback[Geometry,D] {
-          def apply (col:Int, row:Int, g:Geometry[D]) {
-            holder += r.get(col,row)
+        new Callback[Geometry, D] {
+          def apply(col: Int, row: Int, g: Geometry[D]) {
+            holder += r.get(col, row)
           }
         }
       )
@@ -22,25 +22,25 @@ object Enumerate extends TileSummary[mutable.ArrayBuffer[Int],Array[Int],ValueSo
     holder
   }
 
-  def handleFullTile(ft:FullTileIntersection):mutable.ArrayBuffer[Int] = {
+  def handleFullTile(ft: FullTileIntersection): mutable.ArrayBuffer[Int] = {
     val holder = mutable.ArrayBuffer.empty[Int]
     ft.tile.foreach(holder += _)
     holder
   }
 
-  def converge(ds:DataSource[mutable.ArrayBuffer[Int],_]) = {
-    ds.foldLeft(mutable.ArrayBuffer.empty[Int])(_++_).map(_.toArray)
+  def converge(ds: DataSource[mutable.ArrayBuffer[Int], _]) =
+    ds.foldLeft(mutable.ArrayBuffer.empty[Int])(_ ++ _).map(_.toArray)
 }
 
 object EnumerateDouble extends TileSummary[mutable.ArrayBuffer[Double],Array[Double],ValueSource[Array[Double]]] {
-  def handlePartialTile[D](pt:PartialTileIntersection[D]):mutable.ArrayBuffer[Double] = {
-    val PartialTileIntersection(r,polygons) = pt
+  def handlePartialTile[D](pt: PartialTileIntersection[D]): mutable.ArrayBuffer[Double] = {
+    val PartialTileIntersection(r, polygons) = pt
     var holder = mutable.ArrayBuffer.empty[Double]
-    for(p <- polygons.asInstanceOf[List[Polygon[D]]]) {
+    for (p <- polygons.asInstanceOf[List[Polygon[D]]]) {
       Rasterizer.foreachCellByFeature(p, r.rasterExtent)(
-        new Callback[Geometry,D] {
-          def apply (col:Int, row:Int, g:Geometry[D]) {
-            holder += r.get(col,row)
+        new Callback[Geometry, D] {
+          def apply(col: Int, row: Int, g: Geometry[D]) {
+            holder += r.get(col, row)
           }
         }
       )
@@ -48,12 +48,12 @@ object EnumerateDouble extends TileSummary[mutable.ArrayBuffer[Double],Array[Dou
     holder
   }
 
-  def handleFullTile(ft:FullTileIntersection):mutable.ArrayBuffer[Double] = {
+  def handleFullTile(ft: FullTileIntersection): mutable.ArrayBuffer[Double] = {
     val holder = mutable.ArrayBuffer.empty[Double]
     ft.tile.foreachDouble(holder += _)
-      holder
+    holder
   }
 
-  def converge(ds:DataSource[mutable.ArrayBuffer[Double],_]) =
-    ds.foldLeft(mutable.ArrayBuffer.empty[Double])(_++_).map(_.toArray)
+  def converge(ds: DataSource[mutable.ArrayBuffer[Double], _]) =
+    ds.foldLeft(mutable.ArrayBuffer.empty[Double])(_ ++ _).map(_.toArray)
 }
