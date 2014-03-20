@@ -133,15 +133,15 @@ trait ZonalSummaryOpMethods[+Repr <: RasterSource] { self:Repr =>
   def zonalMeanDouble[D](p:Op[feature.Polygon[D]],cached:DataSource[MeanResult,_]):ValueSource[Double] =
     zonalSummary(MeanDouble,p,Some(cached))
 
-  def zonalEnumerate[D](p:Op[feature.Polygon[D]]):ValueSource[Array[Int]] =
+  def zonalEnumerate[D](p:Op[feature.Polygon[D]]):ValueSource[Array[(Int,Int,Int)]] =
     zonalSummary(Enumerate,p,None)
 
-  def zonalEnumerate[D](p:Op[feature.Polygon[D]],cached:DataSource[mutable.ArrayBuffer[Int],_]):ValueSource[Array[Int]] =
+  def zonalEnumerate[D](p:Op[feature.Polygon[D]],cached:DataSource[mutable.ArrayBuffer[(Int,Int,Int)],_]):ValueSource[Array[(Int,Int,Int)]] =
     zonalSummary(Enumerate,p,Some(cached))
 
-  def zonalEnumerateDouble[D](p:Op[feature.Polygon[D]]):ValueSource[Array[Double]] =
+  def zonalEnumerateDouble[D](p:Op[feature.Polygon[D]]):ValueSource[Array[(Int,Int,Double)]] =
     zonalSummary(EnumerateDouble,p,None)
 
-  def zonalEnumerateDouble[D](p:Op[feature.Polygon[D]],cached:DataSource[mutable.ArrayBuffer[Double],_]):ValueSource[Array[Double]] =
+  def zonalEnumerateDouble[D](p:Op[feature.Polygon[D]],cached:DataSource[mutable.ArrayBuffer[(Int,Int,Double)],_]):ValueSource[Array[(Int,Int,Double)]] =
     zonalSummary(EnumerateDouble,p,Some(cached))
 }
