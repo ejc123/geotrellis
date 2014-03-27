@@ -11,7 +11,7 @@ import ls.Plugin.lsSettings
 
 object Version {
   val geotrellis = "1.0.0-SNAPSHOT"
-  val scala = "2.10.3"
+  val scala = "2.10.4"
   val akka = "2.2.3"
 }
 
