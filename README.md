@@ -3,7 +3,7 @@
 *GeoTrellis* is a Scala library and framework for creating processes to work with raster data.
 
 #### IO: 
-GeoTrellis reads, writes, and operates on raster data as fast as possible. It also has functionaly to warp (change the resolution and bounding box) of rasters on loading and throughout the operation sequence.
+GeoTrellis reads, writes, and operates on raster data as fast as possible. It also has functionality to warp (change the resolution and bounding box of) rasters on loading and throughout the operation sequence.
       
 #### Operations: 
 GeoTrellis implements many [Map Algebra](http://en.wikipedia.org/wiki/Map_algebra) operations as well as vector to raster or raster to vector operations. This is the heart of GeoTrellis: preforming geospatial operations against raster data in the fastest way possible, no matter the scale.
@@ -84,8 +84,6 @@ More information is also available on the [GeoTrellis website](http://www.azavea
 
 ## API Reference
 
-### Scaladocs
-
 You can find *Scaladocs* for the latest version of the project here:
 
 [http://geotrellis.github.com/scaladocs/latest/#geotrellis.package](http://geotrellis.github.com/scaladocs/latest/#geotrellis.package)
@@ -103,3 +101,7 @@ You can find *Scaladocs* for the latest version of the project here:
  - Ameet Kini
  - Mark Landry
  - Walt Chen
+
+## Contributing
+
+Feedback and contributions to the project, no matter what kind, are always very welcome. A CLA is required for contribution, see the [CLA FAQ](https://github.com/geotrellis/geotrellis/wiki/Contributor-license-agreement-FAQ) on the wiki for more information. Please refer to the [Scala style guide](http://docs.scala-lang.org/style/) for formatting patches to the codebase.
