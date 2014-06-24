@@ -23,7 +23,9 @@ import org.apache.spark.SparkContext
 import java.io.File
 
 object SparkUtils extends Logging {
-  def createSparkContext(sparkMaster: String, appName: String) = {
+  def createSparkConf = new SparkConf()
+  
+  def createSparkContext(sparkMaster: String, appName: String, sparkConf: SparkConf = createSparkConf) = {
     val sparkHome = scala.util.Properties.envOrNone("SPARK_HOME") match {
       case Some(value) => value
       case None        => throw new Error("Oops, SPARK_HOME is not defined")
@@ -34,22 +36,17 @@ object SparkUtils extends Logging {
       case None        => throw new Error("Oops, GEOTRELLIS_HOME is not defined")
     }
    
-    val sparkConf = new SparkConf()
-    .setMaster(sparkMaster)
-    .setAppName(appName)
-    .setSparkHome(sparkHome)
-    .setJars(Array(jar(gtHome)))
-    .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-    .set("spark.kryo.registrator", "geotrellis.spark.KryoRegistrator")
-    
-    // TODO - find a way to have command line pass these in
-    //.set("io.map.index.interval", "1")
-    //.set("dfs.replication","1")
-    //.set("spark.akka.timeout","10000")
+    sparkConf
+      .setMaster(sparkMaster)
+      .setAppName(appName)
+      .setSparkHome(sparkHome)
+      .setJars(Array(jar(gtHome)))
+      .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+      .set("spark.kryo.registrator", "geotrellis.spark.KryoRegistrator")   
 
     new SparkContext(sparkConf)
   }
-
+  
   def createHadoopConfiguration = {
     // TODO - figure out how to get the conf directory automatically added to classpath via sbt
     // - right now it is manually added
@@ -86,7 +83,7 @@ object SparkUtils extends Logging {
     
     val matches = findJar(new File(gtHome)).flatten
     if (matches.length == 1) {
-      val firstMatch = prefix(matches(0).getAbsolutePath)      
+      val firstMatch = prefix(matches(0).getAbsolutePath)
       logInfo(s"Found unique match for geotrellis-spark jar: ${firstMatch}")
       firstMatch
     } else if (matches.length > 1) {

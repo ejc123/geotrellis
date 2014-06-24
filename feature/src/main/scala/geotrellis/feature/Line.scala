@@ -24,35 +24,36 @@ object Line {
   implicit def jtsToLine(jtsGeom: jts.LineString): Line =
     apply(jtsGeom)
 
+  def apply(points: (Double, Double)*)(implicit d: DummyImplicit): Line =
+    apply(points)
+
+  def apply(points: Traversable[(Double, Double)])(implicit d: DummyImplicit): Line =
+    apply(points.map { case (x,y) => Point(x,y) })
+
   def apply(points: Point*): Line =
     apply(points.toList)
 
-  def apply(points: Seq[Point])(implicit d: DummyImplicit): Line =
-    apply(points.toList)
-
-  def apply(points: Array[Point]): Line =
-    apply(points.toList)
-
-  def apply(points: List[Point]): Line = {
-    if (points.length < 2) {
+  def apply(points: Traversable[Point]): Line = {
+    if (points.size < 2) {
       sys.error("Invalid line: Requires 2 or more points.")
     }
 
     Line(factory.createLineString(points.map(_.jtsGeom.getCoordinate).toArray))
   }
-
 }
 
 case class Line(jtsGeom: jts.LineString) extends Geometry
-                                         with Relatable
-                                         with OneDimension {
+                                            with Relatable
+                                            with OneDimension {
 
-  assert(!jtsGeom.isEmpty)
-  assert(jtsGeom.isValid)
+  assert(!jtsGeom.isEmpty, s"LineString Empty: $jtsGeom")
+
+  /** Returns a unique representation of the geometry based on standard coordinate ordering. */
+  def normalized(): Line = { jtsGeom.normalize ; Line(jtsGeom) }
 
   /** Returns this Line's vertices as a list of Points. */
-  lazy val points: List[Point] =
-    jtsGeom.getCoordinates.map(c => Point(c.x, c.y)).toList
+  lazy val points: Array[Point] =
+    jtsGeom.getCoordinates.map(c => Point(c.x, c.y))
 
   /** Tests if the initial vertex equals the final vertex. */
   lazy val isClosed: Boolean =
@@ -75,19 +76,14 @@ case class Line(jtsGeom: jts.LineString) extends Geometry
     jtsGeom.getBoundary
 
   /** Returns this Line's vertices. */
-  lazy val vertices: MultiPoint =
-    jtsGeom.getCoordinates
+  lazy val vertices: Array[Point] =
+    jtsGeom.getCoordinates.map { c => Point(c.x, c.y) }
 
   /**
-   * Returns a Polygon whose points are (minx, miny), (minx, maxy),
-   * (maxx, maxy), (maxx, miny), (minx, miny).
+   * Returns the minimum bounding box that contains this Line.
    */
-  lazy val boundingBox: Polygon =
-    jtsGeom.getEnvelope match {
-      case p: jts.Polygon => Polygon(p)
-      case x =>
-        sys.error(s"Unexpected result for Line boundingBox: ${x.getGeometryType}")
-    }
+  lazy val boundingBox: BoundingBox =
+    jtsGeom.getEnvelopeInternal
 
   /** Returns the length of this Line. */
   lazy val length: Double =
@@ -100,14 +96,14 @@ case class Line(jtsGeom: jts.LineString) extends Geometry
    * Computes a Result that represents a Geometry made up of the points shared
    * by this Line and p.
    */
-  def &(p: Point): PointOrNoResult =
+  def &(p: Point): PointGeometryIntersectionResult =
     intersection(p)
 
   /**
    * Computes a Result that represents a Geometry made up of the points shared
    * by this Line and p.
    */
-  def intersection(p: Point): PointOrNoResult =
+  def intersection(p: Point): PointGeometryIntersectionResult =
     p.intersection(this)
 
   /**
@@ -128,14 +124,14 @@ case class Line(jtsGeom: jts.LineString) extends Geometry
    * Computes a Result that represents a Geometry made up of the points shared
    * by this Line and mp.
    */
-  def &(mp: MultiPoint): MultiPointGeometryIntersectionResult =
+  def &(mp: MultiPoint): MultiPointAtLeastOneDimensionIntersectionResult =
     intersection(mp)
 
   /**
    * Computes a Result that represents a Geometry made up of the points shared
    * by this Line and mp.
    */
-  def intersection(mp: MultiPoint): MultiPointGeometryIntersectionResult =
+  def intersection(mp: MultiPoint): MultiPointAtLeastOneDimensionIntersectionResult =
     jtsGeom.intersection(mp.jtsGeom)
 
 
@@ -187,16 +183,15 @@ case class Line(jtsGeom: jts.LineString) extends Geometry
    * Computes a Result that represents a Geometry made up of all the points in
    * this Line and mp.
    */
-  def |(mp: MultiPolygon): AtMostOneDimensionMultiPolygonUnionResult =
+  def |(mp: MultiPolygon): LineMultiPolygonUnionResult =
     union(mp)
 
   /**
    * Computes a Result that represents a Geometry made up of all the points in
    * this Line and mp.
    */
-  def union(mp: MultiPolygon): AtMostOneDimensionMultiPolygonUnionResult =
+  def union(mp: MultiPolygon): LineMultiPolygonUnionResult =
     jtsGeom.union(mp.jtsGeom)
-
 
   // -- Difference
 
@@ -341,5 +336,4 @@ case class Line(jtsGeom: jts.LineString) extends Geometry
    */
   def within(g: AtLeastOneDimension): Boolean =
     jtsGeom.within(g.jtsGeom)
-
 }

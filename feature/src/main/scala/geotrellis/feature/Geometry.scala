@@ -17,10 +17,13 @@
 package geotrellis.feature
 
 import com.vividsolutions.jts.{geom => jts}
+import geotrellis.proj4.CRS
 
 trait Geometry {
 
   val jtsGeom: jts.Geometry
+
+  assert(jtsGeom.isValid, s"Geometry is invalid: $this")
 
   def distance(other: Geometry): Double =
     jtsGeom.distance(other.jtsGeom)
@@ -28,16 +31,41 @@ trait Geometry {
   def withinDistance(other: Geometry, dist: Double): Boolean =
     jtsGeom.isWithinDistance(other.jtsGeom, dist)
 
-  def centroid: PointOrNoResult = 
+  def centroid: PointOrNoResult =
     jtsGeom.getCentroid 
 
-  def interiorPoint: PointOrNoResult = 
+  def interiorPoint: PointOrNoResult =
     jtsGeom.getInteriorPoint 
 
-  // TODO: decide if this should be the Object.equals() override
-  def equals(g: Geometry): Boolean =
-    jtsGeom.equals(g)
+  override
+  def equals(other: Any): Boolean =
+    other match {
+      case g: Geometry => jtsGeom.equals(g.jtsGeom)
+      case _ => false
+  }
 
+  override
+  def hashCode(): Int = jtsGeom.hashCode
+
+  override def toString = jtsGeom.toString
+}
+
+object Geometry {
+  /**
+   * Wraps JTS Geometry in correct container and attempts to cast.
+   * Useful when sourcing objects from JTS interface.
+   */
+  def fromJts[G <: Geometry](obj: jts.Geometry): G = {
+    obj match {
+      case obj: jts.Point => Point(obj)
+      case obj: jts.LineString => Line(obj)
+      case obj: jts.Polygon => Polygon(obj)
+      case obj: jts.MultiPoint => MultiPoint(obj)
+      case obj: jts.MultiLineString => MultiLine(obj)
+      case obj: jts.MultiPolygon => MultiPolygon(obj)
+      case obj: jts.GeometryCollection => GeometryCollection(obj)
+    }
+  }.asInstanceOf[G]
 }
 
 trait Relatable { self: Geometry =>
@@ -53,11 +81,12 @@ trait Relatable { self: Geometry =>
 trait MultiGeometry extends Geometry
 
 
+// TODO: Get rid of all this, but make sure there's nothing in here that needs to be implemented. 
+
   /* TO BE IMPLEMENTED ON A PER TYPE BASIS */
 
   // equal (with tolerance?)
   // equalExact (huh?)
-  // normalize (hmmm)
 
   // isValid ( don't allow invalid? )
 
@@ -98,3 +127,5 @@ trait MultiGeometry extends Geometry
   // def coordinate:(Double,Double) = jts.getCoordinate
   // def coordinates:Seq[(Double,Double)] = jts.getCoordinates
   // def dimension = jts.getDimension
+
+  // TODO: ask about union/symDiff of a Multi with only one Pont/Line/Polygon with an empty Multi returning a Multi instead of just a Point/Line/Polgyon
