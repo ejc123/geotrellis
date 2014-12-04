@@ -516,7 +516,7 @@ object GeotrellisBuild extends Build {
         organization := "com.azavea.geotrellis",
         name := "gdal-benchmark",
 
-        scalaVersion := "2.10.3",
+        scalaVersion := "2.10.4",
         // raise memory limits here if necessary
         javaOptions += "-Xmx2G",
         javaOptions += "-Djava.library.path=/usr/local/lib",
