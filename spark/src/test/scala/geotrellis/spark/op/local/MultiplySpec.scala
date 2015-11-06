@@ -1,12 +1,12 @@
 /*
  * Copyright (c) 2014 DigitalGlobe.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,33 +16,48 @@
 
 package geotrellis.spark.op.local
 
-import geotrellis.spark.RasterRDDMatchers
-import geotrellis.spark.SharedSparkContext
-import geotrellis.spark.TestEnvironment
-import geotrellis.spark.rdd.RasterRDD
-import geotrellis.spark.testfiles.AllTwos
-
+import geotrellis.spark._
+import geotrellis.spark.io.hadoop._
+import geotrellis.spark.testfiles._
 import org.scalatest.FunSpec
 
-class MultiplySpec extends FunSpec with TestEnvironment with SharedSparkContext with RasterRDDMatchers {
+class MultiplySpec extends FunSpec
+                      with TestEnvironment
+                      with TestFiles
+                      with RasterRDDMatchers
+                      with OnlyIfCanRunSpark {
 
   describe("Multiply Operation") {
-    val allTwos = AllTwos(inputHome, conf)
+    ifCanRunSpark {
+      val twos = AllTwosTestFile
 
-    it("should multiply a constant by a raster") { 
+      it("should multiply a constant by a raster") {
+        val fours = twos * 2
 
-      val twos = RasterRDD(allTwos.path, sc)
+        rasterShouldBe(fours, (4, 4))
+        rastersShouldHaveSameIdsAndTileCount(twos, fours)
+      }
 
-      val fours = twos * 2
+      it("should multiply a raster by a constant") {
+        val fours = 2 *: twos
 
-      shouldBe(fours, (4, 4, allTwos.tileCount))
-    }
+        rasterShouldBe(fours, (4, 4))
+        rastersShouldHaveSameIdsAndTileCount(twos, fours)
+      }
 
-    it("should multiply multiple rasters") { 
-      val twos = RasterRDD(allTwos.path, sc)
-      val eights = twos * twos * twos
+      it("should multiply multiple rasters") {
+        val eights = twos * twos * twos
 
-      shouldBe(eights, (8, 8, allTwos.tileCount))
+        rasterShouldBe(eights, (8, 8))
+        rastersShouldHaveSameIdsAndTileCount(twos, eights)
+      }
+
+      it("should multiply multiple rasters as a seq") {
+        val eights = twos * Seq(twos, twos)
+
+        rasterShouldBe(eights, (8, 8))
+        rastersShouldHaveSameIdsAndTileCount(twos, eights)
+      }
     }
   }
 }

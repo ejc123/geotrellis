@@ -16,21 +16,78 @@
 
 package geotrellis
 
-import geotrellis.spark.formats._
-import geotrellis.spark.metadata.Context
-import geotrellis.spark.rdd.RasterRDD
-import geotrellis.spark.rdd.SaveRasterFunctions
+import geotrellis.raster._
+import geotrellis.vector._
+import geotrellis.proj4._
 
-import org.apache.hadoop.fs.Path
-import org.apache.spark.rdd.RDD
+import geotrellis.spark.tiling._
+
+import org.apache.spark.rdd._
+
+import spire.syntax.cfor._
+
+import monocle._
+import monocle.syntax._
+
+import scala.reflect.ClassTag
 
 package object spark {
-  implicit class MakeRasterRDD(val prev: RDD[Tile]) {
-    def withContext(ctx: Context) = new RasterRDD(prev, ctx)
+  type KeyLens[T, K] = SerializableLens[T,T,K,K]
+
+  type SpatialComponent[K] = SimpleLens[K, SpatialKey]
+  type TemporalComponent[K] = SimpleLens[K, TemporalKey]
+
+  implicit class SpatialComponentWrapper[K: SpatialComponent](key: K) {
+    val _spatialComponent = implicitly[SpatialComponent[K]]
+
+    def spatialComponent: SpatialKey = 
+      (key |-> _spatialComponent get)
+
+    def updateSpatialComponent(spatialKey: SpatialKey): K = 
+      (key |-> _spatialComponent set(spatialKey))
   }
 
-  implicit class SavableRasterRDD(val rdd: RasterRDD) {
-    def save(path: Path) = SaveRasterFunctions.save(rdd, path)
-    def save(path: String): Unit = save(new Path(path))
+  implicit class TemporalCompenentWrapper[K: TemporalComponent](key: K) {
+    val _temporalComponent = implicitly[TemporalComponent[K]]
+
+    def temporalComponent: TemporalKey = 
+      (key |-> _temporalComponent get)
+
+    def updateTemporalComponent(temporalKey: TemporalKey): K = 
+      (key |-> _temporalComponent set(temporalKey))
+  }
+
+  type ProjectedExtent = (Extent, CRS)
+  type Dimensions = (Int, Int)
+  type TileBounds = GridBounds
+
+  implicit class toPipe[A](x : A) { 
+    def |> [T](f : A => T) = f(x) 
+  }
+
+  implicit class toPipe2[A, B](tup : (A, B)) {
+    def |> [T](f : (A, B) => T) = f(tup._1, tup._2) 
+  }
+
+  implicit class toPipe3[A, B, C](tup : (A, B, C)) {
+    def |> [T](f : (A, B, C) => T) = f(tup._1, tup._2, tup._3) 
+  }
+
+  implicit class toPipe4[A, B, C, D](tup : (A, B, C, D)) {
+    def |> [T](f : (A, B, C, D) => T) = f(tup._1, tup._2, tup._3, tup._4)
+  }
+
+  /** Keeps with the convention while still using simple tups, nice */
+  implicit class TileTuple[K](tup: (K, Tile)) {
+    def id: K = tup._1
+    def tile: Tile = tup._2
+  }
+
+  def asRasterRDD[K: ClassTag](metaData: RasterMetaData)(f: =>RDD[(K, Tile)]): RasterRDD[K] =
+    new RasterRDD[K](f, metaData)
+
+  implicit class MakeRasterRDD[K: ClassTag](val rdd: RDD[(K, Tile)]) {
+    def toRasterRDD(metaData: RasterMetaData) = 
+      new RasterRDD[K](rdd, metaData)
   }
 }

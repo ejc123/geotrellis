@@ -32,9 +32,10 @@ import scala.slick.lifted.Column
 import scala.reflect.ClassTag
 import scala.slick.ast.{ScalaBaseType}
 import scala.slick.jdbc.{PositionedResult, PositionedParameters}
+import java.sql._
 
-import geotrellis.feature._
-import geotrellis.feature.io._
+import geotrellis.vector._
+import geotrellis.vector.io._
 
 /** 
  * This class provides column types and extension methods to work with Geometry columns
@@ -69,9 +70,9 @@ class PostGisProjectionSupport(override val driver: JdbcDriver) extends PostGisE
   implicit val lineTypeMapper               = new ProjectedGeometryJdbcType[LINESTRING]
   implicit val polygonTypeMapper            = new ProjectedGeometryJdbcType[POLYGON]
   implicit val geometryCollectionTypeMapper = new ProjectedGeometryJdbcType[GEOMETRYCOLLECTION]
-  // implicit val multiPointTypeMapper = new ProjectedGeometryJdbcType[ProjectedGeometry[MultiPoint], MultiPoint]
-  // implicit val multiPolygonTypeMapper = new ProjectedGeometryJdbcType[ProjectedGeometry[MultiPolygon], MultiPolygon]
-  // implicit val multiLineTypeMapper = new ProjectedGeometryJdbcType[ProjectedGeometry[MultiLine], MultiLine]
+  implicit val multiPointTypeMapper         = new ProjectedGeometryJdbcType[Projected[MultiPoint]]
+  implicit val multiPolygonTypeMapper       = new ProjectedGeometryJdbcType[Projected[MultiPolygon]]
+  implicit val multiLineTypeMapper          = new ProjectedGeometryJdbcType[Projected[MultiLine]]
 
   implicit def geometryColumnExtensionMethods[G1 <: GEOMETRY](c: Column[G1]) = 
     new GeometryColumnExtensionMethods[G1, G1](c)
@@ -92,18 +93,21 @@ class PostGisProjectionSupport(override val driver: JdbcDriver) extends PostGisE
 
     def sqlType: Int = java.sql.Types.OTHER
 
-    def setValue(v: T, p: PositionedParameters) = p.setBytes(WKB.write(v.geom, v.srid))
+    def setValue(v: T, p: PreparedStatement, idx: Int) = p.setBytes(idx, WKB.write(v.geom, v.srid))
 
-    def setOption(v: Option[T], p: PositionedParameters) = if (v.isDefined) setValue(v.get, p) else p.setNull(sqlType)
+    def updateValue(v: T, r: ResultSet, idx: Int) = r.updateBytes(idx, WKB.write(v.geom, v.srid))
 
-    def nextValue(r: PositionedResult): T = r.nextStringOption().map(fromLiteral[T]).getOrElse(zero)
-
-    def updateValue(v: T, r: PositionedResult) = r.updateBytes(WKB.write(v.geom, v.srid))
+    def getValue(r: ResultSet, idx: Int): T = {
+      val s = r.getString(idx)
+      (if(r.wasNull) None else Some(s))
+        .map(fromLiteral[T](_))
+        .getOrElse(zero)
+    }
   }
 }
 
 object PostGisProjectionSupportUtils {  
-  def toLiteral(pg: Projected[Geometry]): String = WKT.write(pg.geom)
+  def toLiteral(pg: Projected[Geometry]): String = s"SRID=${pg.srid};${WKT.write(pg.geom)}"
 
   def fromLiteral[T <: Projected[_]](value: String): T = 
     splitRSIDAndWKT(value) match {
@@ -114,7 +118,10 @@ object PostGisProjectionSupportUtils {
           else 
             WKT.read[Geometry](wkt)
 
-        Projected(geom, srid).asInstanceOf[T]
+        if (srid != -1)
+          Projected(geom, srid).asInstanceOf[T]
+        else
+          Projected(geom, geom.jtsGeom.getSRID).asInstanceOf[T]
     }
 
   /** copy from [[org.postgis.PGgeometry#splitSRID]] */

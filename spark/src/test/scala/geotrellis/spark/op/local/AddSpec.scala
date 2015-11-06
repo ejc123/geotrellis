@@ -1,12 +1,12 @@
 /*
  * Copyright (c) 2014 DigitalGlobe.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,35 +16,51 @@
 
 package geotrellis.spark.op.local
 
-import geotrellis.spark.RasterRDDMatchers
-import geotrellis.spark.SharedSparkContext
-import geotrellis.spark.TestEnvironment
-import geotrellis.spark.rdd.RasterRDD
-import geotrellis.spark.testfiles.AllOnes
+import geotrellis.spark._
+import geotrellis.proj4._
+import geotrellis.spark.tiling._
+import geotrellis.spark.io.hadoop._
+import geotrellis.spark.RasterRDD
+import geotrellis.spark.testfiles._
 
 import org.scalatest.FunSpec
 
-class AddSpec extends FunSpec with TestEnvironment with SharedSparkContext with RasterRDDMatchers {
-
+class AddSpec extends FunSpec
+    with TestEnvironment
+    with TestFiles
+    with RasterRDDMatchers
+    with OnlyIfCanRunSpark {
   describe("Add Operation") {
-    val allOnes = AllOnes(inputHome, conf)
+    ifCanRunSpark {
+      val ones = AllOnesTestFile
 
-    it("should add a constant to a raster") { 
+      it("should add a constant to a raster") {
+        val twos = ones + 1
 
-      val ones = RasterRDD(allOnes.path, sc)
-      
-      val twos = ones + 1
+        rasterShouldBe(twos, (2, 2))
+        rastersShouldHaveSameIdsAndTileCount(ones, twos)
+      }
 
-      shouldBe(twos, (2, 2, allOnes.tileCount))
-    }
+      it("should add a raster to a constant") {
+        val twos = 1 +: ones
 
-    it("should add multiple rasters") {
+        rasterShouldBe(twos, (2, 2))
+        rastersShouldHaveSameIdsAndTileCount(ones, twos)
+      }
 
-      val ones = RasterRDD(allOnes.path, sc)
+      it("should add multiple rasters") {
+        val threes = ones + ones + ones
 
-      val threes = ones + ones + ones 
+        rasterShouldBe(threes, (3, 3))
+        rastersShouldHaveSameIdsAndTileCount(ones, threes)
+      }
 
-      shouldBe(threes, (3, 3, allOnes.tileCount))
+      it("should add multiple rasters as a seq") {
+        val threes = ones + Array(ones, ones)
+
+        rasterShouldBe(threes, (3, 3))
+        rastersShouldHaveSameIdsAndTileCount(ones, threes)
+      }
     }
   }
 }

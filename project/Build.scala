@@ -1,21 +1,18 @@
 /*
  * Copyright (c) 2014 Azavea.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-// spark hadoop env variable
-import scala.util.Properties
 
 import sbt._
 import sbt.Keys._
@@ -24,12 +21,8 @@ import sbt.Keys._
 import sbtassembly.Plugin._
 import AssemblyKeys._
 
-// ls.implicit.ly
-import ls.Plugin.LsKeys
-import ls.Plugin.lsSettings
-
 object Info {
-  val description = 
+  val description =
     "GeoTrellis is an open source geographic data processing engine for high performance applications."
   val url = "http://geotrellis.github.io"
   val tags = Seq("maps", "gis", "geographic", "data", "raster", "processing")
@@ -38,12 +31,13 @@ object Info {
 object GeotrellisBuild extends Build {
   import Dependencies._
 
-  val featureBenchmarkKey = AttributeKey[Boolean]("featureJavaOptionsPatched")
+  val vectorBenchmarkKey = AttributeKey[Boolean]("vectorJavaOptionsPatched")
+  val gdalBenchmarkKey = AttributeKey[Boolean]("gdalJavaOptionsPatched")
   val benchmarkKey = AttributeKey[Boolean]("javaOptionsPatched")
 
   // Default settings
-  override lazy val settings = 
-    super.settings ++ 
+  override lazy val settings =
+    super.settings ++
     Seq(
       shellPrompt := { s => Project.extract(s).currentProject.id + " > " },
       version := Version.geotrellis,
@@ -57,6 +51,8 @@ object GeotrellisBuild extends Build {
           "-unchecked",
           "-Yinline-warnings",
           "-language:implicitConversions",
+          "-language:reflectiveCalls",
+          "-language:higherKinds",
           "-language:postfixOps",
           "-language:existentials",
           "-feature"),
@@ -97,7 +93,7 @@ object GeotrellisBuild extends Build {
         </developers>)
     )
 
-  val defaultAssemblySettings = 
+  val defaultAssemblySettings =
     assemblySettings ++
     Seq(
       test in assembly := {},
@@ -107,7 +103,7 @@ object GeotrellisBuild extends Build {
           case "application.conf" => MergeStrategy.concat
           case "META-INF/MANIFEST.MF" => MergeStrategy.discard
           case "META-INF\\MANIFEST.MF" => MergeStrategy.discard
-          case _ => MergeStrategy.first 
+          case _ => MergeStrategy.first
         }
       },
       resolvers ++= resolutionRepos
@@ -115,8 +111,17 @@ object GeotrellisBuild extends Build {
 
   // Project: root
   lazy val root =
-    Project("root", file("."))
-      .aggregate(core, coreTest)
+    Project("geotrellis", file("."))
+      .dependsOn(raster, vector, proj4)
+      .aggregate(raster, vector, proj4, spark, rasterTest, vectorTest)
+      .settings(
+        initialCommands in console:=
+          """
+          import geotrellis.raster._
+          import geotrellis.vector._
+          import geotrellis.proj4._
+          """
+      )
 
   // Project: macros
   lazy val macros =
@@ -125,37 +130,41 @@ object GeotrellisBuild extends Build {
 
   lazy val macrosSettings = Seq(
     name := "geotrellis-macros",
-    addCompilerPlugin("org.scala-lang.plugins" % "macro-paradise_2.10.2" % "2.0.0-SNAPSHOT"),
-    libraryDependencies ++= Seq(scalaReflect),
+    addCompilerPlugin("org.scalamacros" % "paradise" % "2.0.1" cross CrossVersion.full),
+    libraryDependencies ++= Seq(
+      scalaReflect,
+      "org.scalamacros" %% "quasiquotes" % "2.0.1"
+    ),
     resolvers += Resolver.sonatypeRepo("snapshots")
   )
 
-  // Project: feature
-  lazy val feature =
-    Project("feature", file("feature"))
-      .settings(name := "geotrellis-feature")
+  // Project: vector
+  lazy val vector =
+    Project("vector", file("vector"))
+      .settings(name := "geotrellis-vector")
       .settings(libraryDependencies ++=
         Seq(
           jts,
           sprayJson,
           sprayHttpx,
-          akkaActor
+          apacheMath,
+          spire
         )
       )
       .settings(defaultAssemblySettings: _*)
       .dependsOn(proj4)
 
-  // Project: feature-test
-  lazy val featureTest =
-    Project("feature-test", file("feature-test"))
-      .settings(name := "geotrellis-feature-test")
-      .settings(libraryDependencies ++=
-        Seq(
-          scalatest   % "test",
-          scalacheck  % "test"
-        )
+  // Project: vector-test
+  lazy val vectorTest =
+    Project("vector-test", file("vector-test"))
+      .dependsOn(vector, testkit)
+      .settings(name := "geotrellis-vector-test")
+      .settings(libraryDependencies ++= Seq(
+        scalatest   % "test",
+        scalacheck  % "test"
       )
-      .dependsOn(feature, testkit)
+    )
+
 
   // Project: proj4
   lazy val proj4 =
@@ -166,21 +175,52 @@ object GeotrellisBuild extends Build {
     Seq(
       name := "geotrellis-proj4",
       libraryDependencies ++= Seq(
-        "junit" % "junit" % "3.8.1" % "test",
-        "com.novocode" % "junit-interface" % "0.9" % "test"
+        "org.parboiled" %% "parboiled" % "2.0.0" % "test",
+        scalatest   % "test",
+        scalacheck  % "test",
+        openCSV
       )
     )
 
-  // Project: core
-  lazy val core =
-    Project("core", file("core"))
+  // Project: raster
+  lazy val raster =
+    Project("raster", file("raster"))
       .dependsOn(macros)
-      .dependsOn(feature)
-      .settings(coreSettings: _*)
+      .dependsOn(vector)
+      .settings(rasterSettings: _*)
 
-  lazy val coreSettings =
+  lazy val rasterSettings =
     Seq(
-      name := "geotrellis",
+      name := "geotrellis-raster",
+      parallelExecution := false,
+      fork in test := false,
+      javaOptions in run += "-Xmx2G",
+      scalacOptions in compile ++=
+        Seq("-optimize"),
+      libraryDependencies ++= Seq(
+        "com.typesafe" % "config" % "1.2.1",
+        scalaReflect,
+        jts,
+        jacksonCore,
+        jacksonMapper,
+        spire,
+        monocleCore,
+        monocleMacro,
+        sprayClient, // for reading args from URLs,
+        openCSV
+      )
+    ) ++
+    defaultAssemblySettings
+
+  // Project: raster-test
+  lazy val rasterTest =
+    Project("raster-test", file("raster-test"))
+      .dependsOn(raster, testkit)
+      .settings(rasterTestSettings: _*)
+
+  lazy val rasterTestSettings =
+    Seq(
+      name := "geotrellis-raster-test",
       parallelExecution := false,
       fork in test := false,
       javaOptions in run += "-Xmx2G",
@@ -188,8 +228,28 @@ object GeotrellisBuild extends Build {
         Seq("-optimize"),
       libraryDependencies ++= Seq(
         scalatest % "test",
+        scalacheck  % "test",
+        spire % "test",
+        sprayClient % "test",
+        sprayRouting % "test"
+      )
+    ) ++
+    defaultAssemblySettings
+
+  // Project: engine
+  lazy val engine =
+    Project("engine", file("engine"))
+      .dependsOn(raster)
+      .settings(engineSettings:_*)
+
+  lazy val engineSettings =
+    Seq(
+      name := "geotrellis-engine",
+      scalacOptions in compile ++=
+        Seq("-optimize"),
+      libraryDependencies ++= Seq(
+        scalatest % "test",
         scalaReflect,
-        jts,
         akkaKernel,
         akkaRemote,
         akkaActor,
@@ -197,64 +257,56 @@ object GeotrellisBuild extends Build {
         jacksonCore,
         jacksonMapper,
         spire,
-        sprayClient, // for reading args from URLs,
-        apacheMath
+        monocleCore,
+        monocleMacro,
+        sprayClient // for reading args from URLs,
       )
     ) ++
     defaultAssemblySettings
-    lsSettings ++
-    Seq(
-      (LsKeys.tags in LsKeys.lsync) :=
-        Info.tags,
-      (LsKeys.docsUrl in LsKeys.lsync) := 
-        Some(new URL(Info.url)),
-      (description in LsKeys.lsync) := 
-        Info.description
-    )
 
-  // Project: core-test
-  lazy val coreTest =
-    Project("core-test", file("core-test"))
-      .dependsOn(core, testkit, feature % "compile")
-      .settings(coreTestSettings: _*)      
-      
-  lazy val coreTestSettings =
+  // Project: engine
+  lazy val engineTest =
+    Project("engine-test", file("engine-test"))
+      .dependsOn(engine, testkit)
+      .settings(engineTestSettings:_*)
+
+  lazy val engineTestSettings =
     Seq(
-      name := "geotrellis-test",
+      name := "geotrellis-engine-test",
       parallelExecution := false,
       fork in test := false,
       javaOptions in run += "-Xmx2G",
       scalacOptions in compile ++=
         Seq("-optimize"),
       libraryDependencies ++= Seq(
-        akkaActor % "test",
-        scalatest % "test",      
-        spire,
+        scalatest % "test",
+        spire % "test",
         sprayClient % "test",
         sprayRouting % "test"
       )
     ) ++
     defaultAssemblySettings
-  
+
+
   // Project: testkit
   lazy val testkit: Project =
     Project("testkit", file("testkit"))
-      .dependsOn(core)
+      .dependsOn(raster, engine)
       .settings(name := "geotrellis-testkit")
       .settings(libraryDependencies += scalatest)
-        
+
 
   // Project: services
   lazy val services: Project =
     Project("services", file("services"))
-      .dependsOn(core, feature)
+      .dependsOn(raster, vector, engine)
       .settings(name := "geotrellis-services")
 
   // Project: jetty
   lazy val jetty: Project =
     Project("jetty", file("jetty"))
       .settings(jettySettings: _*)
-      .dependsOn(core,services)
+      .dependsOn(services)
 
   lazy val jettySettings =
     Seq(
@@ -263,7 +315,6 @@ object GeotrellisBuild extends Build {
         jettyWebapp,
         jerseyBundle,
         slf4jApi,
-        slf4jNop,
         asm
       )
     ) ++
@@ -273,29 +324,31 @@ object GeotrellisBuild extends Build {
   lazy val geotrellis_slick: Project =
     Project("slick", file("slick"))
       .settings(slickSettings: _*)
-      .dependsOn(feature)
+      .dependsOn(vector)
 
   lazy val slickSettings =
     Seq(
       name := "geotrellis-slick",
       libraryDependencies := Seq(
-        slick, 
-        postgresql, 
-        slf4jNop, 
+        slick,
+        postgresql,
+        slf4jApi,
         scalatest % "test"
       )
     ) ++
-    defaultAssemblySettings
+    defaultAssemblySettings ++
+    net.virtualvoid.sbt.graph.Plugin.graphSettings
 
   // Project: admin
   lazy val admin: Project =
     Project("admin", file("admin"))
       .settings(adminSettings: _*)
-      .dependsOn(core,services, feature)
+      .dependsOn(raster, services, vector)
 
   lazy val adminSettings =
     Seq(
       name := "geotrellis-admin",
+      fork := true,
       libraryDependencies ++= Seq(
         scalatest % "test",
         sprayTestkit % "test",
@@ -303,7 +356,7 @@ object GeotrellisBuild extends Build {
         sprayCan,
         sprayHttpx
       )
-    ) ++ 
+    ) ++
     spray.revolver.RevolverPlugin.Revolver.settings ++
     defaultAssemblySettings
 
@@ -311,38 +364,56 @@ object GeotrellisBuild extends Build {
   lazy val spark: Project =
     Project("spark", file("spark"))
       .settings(sparkSettings: _*)
-      .dependsOn(core, testkit % "test")
-      .dependsOn(geotools)
+      .dependsOn(raster, gdal, testkit % "test")
 
-  // using hadoop and spark version from environment was inspired by Spark itself
-  val DEFAULT_HADOOP_VERSION = "0.20.2-cdh3u4"
-  lazy val hadoopVersion = Properties.envOrElse("SPARK_HADOOP_VERSION", DEFAULT_HADOOP_VERSION)
-
-  val DEFAULT_SPARK_VERSION = "0.9.1"
-  lazy val sparkVersion = Properties.envOrElse("SPARK_VERSION", DEFAULT_SPARK_VERSION)
   lazy val sparkSettings =
     Seq(
       name := "geotrellis-spark",
+      fork := true,
       parallelExecution in Test := false,
-      javaOptions += "-Xmx8G",
-      libraryDependencies ++= 
+      javaOptions ++= List(
+        "-Xmx8G",
+        "-Djava.library.path=/usr/local/lib",
+        "-Dsun.io.serialization.extendedDebugInfo=true"
+      ),
+      libraryDependencies ++=
         Seq(
           // first two are just to quell the UnsupportedOperationException in Hadoop's Configuration
           // http://itellity.wordpress.com/2013/05/27/xerces-parse-error-with-hadoop-or-solr-feature-httpapache-orgxmlfeaturesxinclude-is-not-recognized/
           "xerces" % "xercesImpl" % "2.9.1",
           "xalan" % "xalan" % "2.7.1",
-          "org.apache.spark" %% "spark-core" % sparkVersion excludeAll (
-              ExclusionRule(organization = "org.apache.hadoop")),
-           "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll (
-	       ExclusionRule(organization = "hsqldb")),
-          "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.3.0",
+          "org.apache.spark" %% "spark-core" % Version.spark
+            excludeAll (
+            ExclusionRule(organization = "org.apache.hadoop"),
+            ExclusionRule(organization = "com.google.code.findbugs")),
+          "org.apache.hadoop" % "hadoop-client" % Version.hadoop % "compile"
+            excludeAll (ExclusionRule(organization = "hsqldb")),
+          "org.apache.hadoop" % "hadoop-client" % "2.4.1" % "test"
+            excludeAll (ExclusionRule(organization = "hsqldb")),
+          "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.3.0"
+            excludeAll (ExclusionRule(organization = "com.google.code.findbugs")),
           "com.quantifind" %% "sumac" % "0.2.3",
+          "org.mockito" % "mockito-core" % "1.9.5" % "test",
+          "org.apache.accumulo" % "accumulo-core" % "1.5.1",
+          spire, sprayRouting, sprayCan,
           scalatest % "test",
-          spire
+          monocleCore, monocleMacro,
+          nscalaTime
         ),
-      resolvers += "Cloudera Repo" at "https://repository.cloudera.com/artifactory/cloudera-repos"
-    ) ++ 
-    defaultAssemblySettings ++ 
+      resolvers ++= Seq(
+        "Cloudera Repo" at "https://repository.cloudera.com/artifactory/cloudera-repos"
+      ),
+      initialCommands in console :=
+        """
+        import geotrellis.raster._
+        import geotrellis.vector._
+        import geotrellis.proj4._
+        import geotrellis.spark._
+        import geotrellis.spark.utils._
+        import geotrellis.spark.tiling._
+        """
+    ) ++
+    defaultAssemblySettings ++
     net.virtualvoid.sbt.graph.Plugin.graphSettings
 
   // Project: gdal
@@ -350,7 +421,7 @@ object GeotrellisBuild extends Build {
   lazy val gdal: Project =
     Project("gdal", file("gdal"))
       .settings(gdalSettings: _*)
-      .dependsOn(core, geotools % "test")
+      .dependsOn(raster, geotools % "test")
 
   lazy val gdalSettings =
     Seq(
@@ -364,24 +435,24 @@ object GeotrellisBuild extends Build {
         ),
       resolvers ++=
         Seq(
-          "OpenGeo" at "http://repo.opengeo.org/"
+          "OpenGeo" at "http://repo.boundlessgeo.com/main"
         ),
       fork in test := true
     ) ++
     defaultAssemblySettings
-    
+
   // Project: geotools
 
   lazy val geotools: Project =
     Project("geotools", file("geotools"))
       .settings(geotoolsSettings: _*)
-      .dependsOn(core)
+      .dependsOn(raster, engine)
       .dependsOn(testkit % "test")
 
   lazy val geotoolsSettings =
     Seq(
       name := "geotrellis-geotools",
-      libraryDependencies ++= 
+      libraryDependencies ++=
         Seq(
           "java3d" % "j3d-core" % "1.3.1",
           "org.geotools" % "gt-main" % Version.geotools,
@@ -391,7 +462,7 @@ object GeotrellisBuild extends Build {
           "org.geotools" % "gt-epsg-hsql" % Version.geotools,
           "javax.media" % "jai_core" % "1.1.3" from "http://download.osgeo.org/webdav/geotools/javax/media/jai_core/1.1.3/jai_core-1.1.3.jar"
         ),
-      resolvers ++= 
+      resolvers ++=
         Seq(
           "Geotools" at "http://download.osgeo.org/webdav/geotools/"
         ),
@@ -404,18 +475,18 @@ object GeotrellisBuild extends Build {
   lazy val dev: Project =
     Project("dev", file("dev"))
       .settings(devSettings: _*)
-      .dependsOn(core)
+      .dependsOn(raster, engine)
 
   lazy val devSettings =
     Seq(
-      libraryDependencies ++= 
+      libraryDependencies ++=
         Seq(
           scalaReflect,
           sigar
         ),
       Keys.fork in run := true,
       fork := true,
-      javaOptions in run ++= 
+      javaOptions in run ++=
         Seq(
           "-Djava.library.path=./sigar"
         )
@@ -427,53 +498,22 @@ object GeotrellisBuild extends Build {
     Project("demo", file("demo"))
       .dependsOn(jetty)
 
-  // Project: tasks
-  lazy val tasks: Project =
-    Project("tasks", file("tasks"))
-      .settings(tasksSettings: _*)
-      .dependsOn(core, geotools)
+  // Project: vector-benchmark
 
-  lazy val tasksSettings =
+  lazy val vectorBenchmark: Project =
+    Project("vector-benchmark", file("vector-benchmark"))
+      .settings(vectorBenchmarkSettings: _*)
+      .dependsOn(vectorTest % "compile->test")
+
+  def vectorBenchmarkSettings =
     Seq(
-      libraryDependencies ++= 
-        Seq(
-          jcommander,
-          reflections
-        ),
-      libraryDependencies <+= 
-        (sbtVersion) { v =>
-          v.split('.').toList match {
-            case "0" :: "11" :: "3" :: Nil  =>
-              "org.scala-sbt" %%
-              "launcher-interface" %
-              v % "provided"
-            case _ =>
-              "org.scala-sbt" %
-              "launcher-interface" %
-              v % "provided"
-          }
-        },
-      mainClass in Compile := Some("geotrellis.run.Tasks")
-    ) ++
-    defaultAssemblySettings
-
-  // Project: feature-benchmark
-
-  lazy val featureBenchmark: Project = 
-    Project("feature-benchmark", file("feature-benchmark"))
-      .settings(featureBenchmarkSettings: _*)
-      .dependsOn(featureTest % "compile->test")
-
-  def featureBenchmarkSettings =
-    Seq(
-      name := "geotrellis-feature-benchmark",
+      name := "geotrellis-vector-benchmark",
       libraryDependencies ++= Seq(
         scalatest % "test",
-        scalacheck % "test", 
+        scalacheck % "test",
+        caliper,
         "com.google.guava" % "guava" % "r09",
         "com.google.code.java-allocation-instrumenter" % "java-allocation-instrumenter" % "2.0",
-        "com.google.code.caliper" % "caliper" % "1.0-SNAPSHOT"
-          from "http://plastic-idolatry.com/jars/caliper-1.0-SNAPSHOT.jar",
         "com.google.code.gson" % "gson" % "1.7.1"
       ),
 
@@ -490,12 +530,28 @@ object GeotrellisBuild extends Build {
       // into the former
       onLoad in Global ~= { previous => state =>
         previous {
-          state.get(featureBenchmarkKey) match {
+          state.get(vectorBenchmarkKey) match {
             case None =>
               // get the runtime classpath, turn into a colon-delimited string
-              val classPath = Project.runTask(fullClasspath in Runtime in featureBenchmark, state).get._2.toEither.right.get.files.mkString(":")
-              // return a state with javaOptionsPatched = true and javaOptions set correctly
-              Project.extract(state).append(Seq(javaOptions in (featureBenchmark, run) ++= Seq("-Xmx8G", "-cp", classPath)), state.put(featureBenchmarkKey, true))
+              Project
+                .runTask(fullClasspath in Runtime in vectorBenchmark, state)
+                .get
+                ._2
+                .toEither match {
+                  case Right(x) =>
+                    val classPath =
+                      x.files
+                       .mkString(":")
+                    // return a state with javaOptionsPatched = true and javaOptions set correctly
+                    Project
+                      .extract(state)
+                      .append(
+                        Seq(javaOptions in (benchmark, run) ++= Seq("-Xmx8G", "-cp", classPath)),
+                        state.put(vectorBenchmarkKey, true)
+                      )
+                  case _ => state
+                }
+
             case Some(_) =>
               state // the javaOptions are already patched
           }
@@ -511,39 +567,82 @@ object GeotrellisBuild extends Build {
       .settings(gdalBenchmarkSettings:_*)
       .dependsOn(gdal, geotools)
 
-  lazy val gdalBenchmarkSettings = 
+  lazy val gdalBenchmarkSettings =
     Seq(
-        organization := "com.azavea.geotrellis",
-        name := "gdal-benchmark",
+      organization := "com.azavea.geotrellis",
+      name := "gdal-benchmark",
 
-        scalaVersion := "2.10.4",
-        // raise memory limits here if necessary
-        javaOptions += "-Xmx2G",
-        javaOptions += "-Djava.library.path=/usr/local/lib",
+      scalaVersion := "2.10.3",
+      // raise memory limits here if necessary
+      javaOptions += "-Xmx2G",
+      javaOptions += "-Djava.library.path=/usr/local/lib",
 
-        // enable forking in both run and test
-        fork := true
+      libraryDependencies ++= Seq(
+        spire,
+        caliper,
+        "com.google.guava" % "guava" % "r09",
+        "com.google.code.java-allocation-instrumenter" % "java-allocation-instrumenter" % "2.0",
+        "com.google.code.gson" % "gson" % "1.7.1"
+      ),
+
+
+      // enable forking in both run and test
+      fork := true,
+      // custom kludge to get caliper to see the right classpath
+
+      // we need to add the runtime classpath as a "-cp" argument to the
+      // `javaOptions in run`, otherwise caliper will not see the right classpath
+      // and die with a ConfigurationException unfortunately `javaOptions` is a
+      // SettingsKey and `fullClasspath in Runtime` is a TaskKey, so we need to
+      // jump through these hoops here in order to feed the result of the latter
+      // into the former
+      onLoad in Global ~= { previous => state =>
+        previous {
+          state.get(gdalBenchmarkKey) match {
+            case None =>
+              // get the runtime classpath, turn into a colon-delimited string
+              Project
+                .runTask(fullClasspath in Runtime in benchmark, state)
+                .get
+                ._2
+                .toEither match {
+                case Right(x) =>
+                  val classPath =
+                    x.files
+                      .mkString(":")
+                  // return a state with javaOptionsPatched = true and javaOptions set correctly
+                  Project
+                    .extract(state)
+                    .append(
+                    Seq(javaOptions in (benchmark, run) ++= Seq("-Xmx8G", "-cp", classPath)),
+                      state.put(gdalBenchmarkKey, true)
+                  )
+                case _ => state
+              }
+            case Some(_) =>
+              state // the javaOptions are already patched
+          }
+        }
+      }
     ) ++
-    defaultAssemblySettings
+  defaultAssemblySettings
 
   // Project: benchmark
 
   lazy val benchmark: Project =
     Project("benchmark", file("benchmark"))
       .settings(benchmarkSettings: _*)
-      .dependsOn(core,geotools)
+      .dependsOn(raster,engine,geotools)
 
   def benchmarkSettings =
     Seq(
       // raise memory limits here if necessary
       javaOptions += "-Xmx8G",
-
       libraryDependencies ++= Seq(
         spire,
+        caliper,
         "com.google.guava" % "guava" % "r09",
         "com.google.code.java-allocation-instrumenter" % "java-allocation-instrumenter" % "2.0",
-        "com.google.code.caliper" % "caliper" % "1.0-SNAPSHOT"
-          from "http://plastic-idolatry.com/jars/caliper-1.0-SNAPSHOT.jar",
         "com.google.code.gson" % "gson" % "1.7.1"
       ),
 
@@ -563,9 +662,24 @@ object GeotrellisBuild extends Build {
           state.get(benchmarkKey) match {
             case None =>
               // get the runtime classpath, turn into a colon-delimited string
-              val classPath = Project.runTask(fullClasspath in Runtime in benchmark, state).get._2.toEither.right.get.files.mkString(":")
-              // return a state with javaOptionsPatched = true and javaOptions set correctly
-              Project.extract(state).append(Seq(javaOptions in (benchmark, run) ++= Seq("-Xmx8G", "-cp", classPath)), state.put(benchmarkKey, true))
+              Project
+                .runTask(fullClasspath in Runtime in benchmark, state)
+                .get
+                ._2
+                .toEither match {
+                case Right(x) =>
+                  val classPath =
+                    x.files
+                      .mkString(":")
+                  // return a state with javaOptionsPatched = true and javaOptions set correctly
+                  Project
+                    .extract(state)
+                    .append(
+                    Seq(javaOptions in (benchmark, run) ++= Seq("-Xmx8G", "-cp", classPath)),
+                      state.put(benchmarkKey, true)
+                  )
+                case _ => state
+              }
             case Some(_) =>
               state // the javaOptions are already patched
           }

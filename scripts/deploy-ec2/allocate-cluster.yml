@@ -5,60 +5,40 @@
   gather_facts: False
   
   tasks:
-    - name: EC2 Security group for master
+    - name: EC2 VPC Group for cluster
       local_action:
         module: ec2_group
         region: "{{ region }}"
-        name: "{{ cluster_name }}-master"
-        description: "master group"
+        name: "{{ cluster_name }}"
+        description: "{{ cluster_name }} security group"
         rules:
-          - proto: all
-            group_name: "{{ cluster_name }}-master"
-          - proto: all
-            group_name: "{{ cluster_name }}-slaves"
           - proto: tcp
             from_port: 22
             to_port: 22
             cidr_ip: "0.0.0.0/0"
           - proto: all
-            cidr_ip: "216.158.51.82/31"
-        rules_egress:
+            cidr_ip: "{{ allow_vpn_from_subnet }}"
           - proto: all
-            cidr_ip: "0.0.0.0/0"
+            group_name: "{{ cluster_name }}"
 
-    - name: EC2 Security group for workers
-      local_action:
-        module: ec2_group
-        region: "{{ region }}"
-        name: "{{ cluster_name }}-slaves"
-        description: "worker group"
-        rules:
-          - proto: all
-            group_name: "{{ cluster_name }}-master"
-          - proto: all
-            group_name: "{{ cluster_name }}-slaves"
-          - proto: tcp
-            from_port: 22
-            to_port: 22
-            cidr_ip: "0.0.0.0/0"
         rules_egress:
           - proto: all
             cidr_ip: "0.0.0.0/0"
   
-
     - name: Launch master
       local_action: 
         module: ec2 
-        image:          "{{ image }}"         
-        instance_type:  "{{ instance_type }}" 
-        key_name:       "{{ ec2_key_name }}" 
-        group:          "{{ cluster_name }}-master"                 
+        image:          "{{ image }}" 
+        instance_type:  "{{ instance_type }}"
+        key_name:       "{{ ec2_key_name }}"
+        group:          "{{ cluster_name }}"
+        region:         "{{ region }}"
         instance_tags:  
-          spark-role: "master"
+          spark-role: "{{ cluster_name }}-master"
         count_tag:
-          spark-role: "master"
+          spark-role: "{{ cluster_name }}-master"
         exact_count:    1
-        wait:           true 
+        wait:           true
       register: master
 
     - name: Add master instance to host group
@@ -79,11 +59,12 @@
         image:          "{{ image }}"         
         instance_type:  "{{ instance_type }}" 
         key_name:       "{{ ec2_key_name }}" 
-        group:          "{{ cluster_name }}-slaves"
+        group:          "{{ cluster_name }}"
+        region:         "{{ region }}"
         instance_tags:  
-          spark-role: "worker"
+          spark-role: "{{ cluster_name }}-worker"
         count_tag:      
-          spark-role: "worker"
+          spark-role: "{{ cluster_name }}-worker"
         exact_count:    "{{ worker_count }}"
         wait:           true
       register: workers
@@ -100,8 +81,5 @@
         private_dns_name={{ item.private_dns_name }}        
       with_items: workers.tagged_instances
  
-    - name: Update Cluster Variables
-      local_action: template src=templates/cluster_vars.j2 dest=./group_vars/cluster.yml
-    
     - name: Update EC2 Hosts Inventory
       local_action: template src=templates/cluster_inventory.j2 dest=./hosts
