@@ -16,7 +16,6 @@
 
 package geotrellis.raster
 
-import geotrellis._
 import geotrellis.vector.Extent
 
 import spire.syntax.cfor._
@@ -42,11 +41,7 @@ final case class IntArrayTile(array: Array[Int], cols: Int, rows: Int)
     pixels
   }
 
-  def warp(current: Extent, target: RasterExtent): ArrayTile = {
-    val warped = Array.ofDim[Int](target.cols * target.rows).fill(NODATA)
-    Warp[Int](RasterExtent(current, cols, rows), target, array, warped)
-    IntArrayTile(warped, target.cols, target.rows)
-  }
+  def copy = ArrayTile(array.clone, cols, rows)
 }
 
 object IntArrayTile {

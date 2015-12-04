@@ -16,13 +16,12 @@
 
 package geotrellis.spark.io.hadoop.formats
 
-import geotrellis.spark.KeyLens
-import geotrellis.spark.ingest.{IngestKey, ProjectedExtent}
+import geotrellis.spark.{SpatialKey, SpaceTimeKey, KeyComponent}
+import geotrellis.spark.ingest._
 import geotrellis.spark.io.hadoop._
 import geotrellis.raster._
 import geotrellis.raster.io.geotiff.reader._
-import geotrellis.vector.Extent
-import geotrellis.vector.Extent
+import geotrellis.vector._
 import geotrellis.proj4._
 import geotrellis.gdal.{RasterBand, RasterDataSet, Gdal}
 
@@ -65,10 +64,20 @@ class GdalInputFormat extends FileInputFormat[GdalRasterInfo, Tile] {
 case class GdalFileInfo(rasterExtent: RasterExtent, crs: CRS, meta: Map[String, String])
 case class GdalRasterInfo(file: GdalFileInfo, bandMeta: Map[String, String])
 
-case class NetCdfBand(extent: Extent, crs: CRS, varName: String, time: DateTime)
+case class NetCdfBand(extent: Extent, crs: CRS, time: DateTime)
 object NetCdfBand {
-  implicit def ingestKey: IngestKey[NetCdfBand] = 
-    KeyLens[NetCdfBand, ProjectedExtent](band => ProjectedExtent(band.extent, band.crs), (band, pe) => NetCdfBand(pe.extent, pe.crs, band.varName, band.time))
+  implicit object IngestKey extends KeyComponent[NetCdfBand, ProjectedExtent] {
+    def lens = createLens(
+      band => ProjectedExtent(band.extent, band.crs),
+      pe => band => NetCdfBand(pe.extent, pe.crs, band.time)
+    )
+  }
+
+  implicit def tiler: Tiler[NetCdfBand, SpaceTimeKey, Tile] = {
+    val getExtent = (inKey: NetCdfBand) => inKey.extent
+    val createKey = (inKey: NetCdfBand, spatialComponent: SpatialKey) => SpaceTimeKey(spatialComponent, inKey.time)
+    Tiler(getExtent, createKey)
+  }
 }
 
 object GdalInputFormat {
@@ -77,13 +86,6 @@ object GdalInputFormat {
       .map(_.split("="))
       .map(l => l(0) -> l(1))
       .toMap
-
-  def parseCRS(projection: Option[String]): CRS =
-    projection match {
-      case None => LatLng //This seems to be default for NetCDF
-      case Some(s) => sys.error(s"Don't know how to handle GDAL projection: $s")
-    }
-
 }
 
 class GdalRecordReader extends RecordReader[GdalRasterInfo, Tile] {
@@ -109,8 +111,8 @@ class GdalRecordReader extends RecordReader[GdalRasterInfo, Tile] {
     fileInfo =
       GdalFileInfo(
         rasterExtent = rasterDataSet.rasterExtent,
-        crs = parseCRS(rasterDataSet.projection),
-        meta = parseMeta(rasterDataSet.metadata)
+        crs          = rasterDataSet.crs.getOrElse(LatLng),
+        meta         = parseMeta(rasterDataSet.metadata)
       )
   }
 

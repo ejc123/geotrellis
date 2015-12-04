@@ -2,7 +2,8 @@ package geotrellis.raster.render
 
 import geotrellis.raster._
 import geotrellis.raster.render.png._
-import geotrellis.raster.stats._
+import geotrellis.raster.histogram.Histogram
+import geotrellis.raster.op.stats._
 
 trait RenderMethods extends TileMethods {
   def color(breaksToColors: Map[Int, Int]): Tile =
@@ -17,6 +18,12 @@ trait RenderMethods extends TileMethods {
   def color(breaksToColors: Map[Double, Int], options: ColorMapOptions)(implicit d: DI): Tile =
     DoubleColorMap(breaksToColors, options).render(tile)
 
+  def color(colorBreaks: ColorBreaks): Tile =
+    colorBreaks.toColorMap.render(tile)
+
+  def color(colorBreaks: ColorBreaks, options: ColorMapOptions): Tile =
+    colorBreaks.toColorMap(options).render(tile)
+
   /** Generate a PNG from a raster of RGBA integer values.
     *
     * Use this operation when you have created a raster whose values are already
@@ -30,7 +37,7 @@ trait RenderMethods extends TileMethods {
   def renderPng(): Png =
     new Encoder(Settings(Rgba, PaethFilter)).writeByteArray(tile)
 
-  def renderPng(colorRamp: ColorRamp): Png = 
+  def renderPng(colorRamp: ColorRamp): Png =
     renderPng(colorRamp.toArray)
 
   def renderPng(colorBreaks: ColorBreaks): Png =
@@ -47,9 +54,9 @@ trait RenderMethods extends TileMethods {
     * generate a ColorBreaks object which represents the value ranges and the
     * assigned color.  One way to create these color breaks is to use the
     * [[geotrellis.raster.stats.op.stat.GetClassBreaks]] operation to generate
-    * quantile class breaks. 
+    * quantile class breaks.
     */
-  def renderPng(colorBreaks: ColorBreaks, noDataColor: Int): Png = 
+  def renderPng(colorBreaks: ColorBreaks, noDataColor: Int): Png =
     renderPng(colorBreaks, noDataColor, None)
 
   /**
@@ -63,20 +70,17 @@ trait RenderMethods extends TileMethods {
     * generate a ColorBreaks object which represents the value ranges and the
     * assigned color.  One way to create these color breaks is to use the
     * [[geotrellis.raster.stats.op.stat.GetClassBreaks]] operation to generate
-    * quantile class breaks. 
+    * quantile class breaks.
     */
-  def renderPng(colorBreaks: ColorBreaks, noDataColor: Int, histogram: Histogram): Png = 
+  def renderPng(colorBreaks: ColorBreaks, noDataColor: Int, histogram: Histogram): Png =
     renderPng(colorBreaks, noDataColor, Some(histogram))
 
-  private 
+  private
   def renderPng(colorBreaks: ColorBreaks, noDataColor: Int, histogram: Option[Histogram]): Png = {
-    val breaks = colorBreaks.limits
-    val colors = colorBreaks.colors
-
     val renderer =
       histogram match {
-        case Some(h) => Renderer(breaks, colors, noDataColor, h)
-        case None => Renderer(breaks, colors, noDataColor)
+        case Some(h) => Renderer(colorBreaks, noDataColor, h)
+        case None => Renderer(colorBreaks, noDataColor)
       }
 
     val r2 = renderer.render(tile)
@@ -84,7 +88,7 @@ trait RenderMethods extends TileMethods {
   }
 
   def renderPng(ramp: ColorRamp, breaks: Array[Int]): Png =
-    renderPng(ColorBreaks.assign(breaks, ramp.toArray))
+    renderPng(ColorBreaks(breaks, ramp.toArray))
 
   def renderPng(colors: Array[Int]): Png = {
     val h = tile.histogram
@@ -94,9 +98,15 @@ trait RenderMethods extends TileMethods {
   def renderPng(colors: Array[Int], numColors: Int): Png =
     renderPng(Color.chooseColors(colors, numColors))
 
-  def renderPng(colors: Array[Int], breaks: Array[Int]): Png =
+  def renderPng(breaks: Array[Int], colors: Array[Int]): Png =
     renderPng(ColorBreaks(breaks, colors), 0)
 
-  def renderPng(colors: Array[Int], breaks: Array[Int], noDataColor: Int): Png =
+  def renderPng(breaks: Array[Int], colors: Array[Int], noDataColor: Int): Png =
+    renderPng(ColorBreaks(breaks, colors), noDataColor)
+
+  def renderPng(breaks: Array[Double], colors: Array[Int]): Png =
+    renderPng(ColorBreaks(breaks, colors), 0)
+
+  def renderPng(breaks: Array[Double], colors: Array[Int], noDataColor: Int): Png =
     renderPng(ColorBreaks(breaks, colors), noDataColor)
 }

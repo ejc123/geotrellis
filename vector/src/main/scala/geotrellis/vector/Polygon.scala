@@ -16,6 +16,7 @@
 
 package geotrellis.vector
 
+import com.vividsolutions.jts.geom.TopologyException
 import com.vividsolutions.jts.{geom => jts}
 import GeomFactory._
 import geotrellis.vector._
@@ -25,6 +26,12 @@ import spire.syntax.cfor._
 object Polygon {
   implicit def jtsToPolygon(jtsGeom: jts.Polygon): Polygon =
     Polygon(jtsGeom)
+
+  def apply(exterior: Point*)(implicit d: DummyImplicit): Polygon =
+    apply(Line(exterior), Set())
+
+  def apply(exterior: Seq[Point]): Polygon =
+    apply(Line(exterior), Set())
 
   def apply(exterior: Line): Polygon =
     apply(exterior, Set())
@@ -70,7 +77,11 @@ case class Polygon(jtsGeom: jts.Polygon) extends Geometry
   assert(!jtsGeom.isEmpty, s"Polygon Empty: $jtsGeom")
 
   /** Returns a unique representation of the geometry based on standard coordinate ordering. */
-  def normalized(): Polygon = { jtsGeom.normalize ; Polygon(jtsGeom) }
+  def normalized(): Polygon = { 
+    val geom = jtsGeom.clone.asInstanceOf[jts.Polygon]
+    geom.normalize
+    Polygon(geom)
+  }
 
   /** Tests whether this Polygon is a rectangle. */
   lazy val isRectangle: Boolean =
@@ -82,12 +93,12 @@ case class Polygon(jtsGeom: jts.Polygon) extends Geometry
 
   /** Returns the exterior ring of this Polygon. */
   lazy val exterior: Line =
-    Line(jtsGeom.getExteriorRing)
+    Line(jtsGeom.getExteriorRing.clone.asInstanceOf[jts.LineString])
 
   /** Returns the hole rings of this Polygon. */
   lazy val holes: Array[Line] = {
     for (i <- 0 until numberOfHoles) yield
-      Line(jtsGeom.getInteriorRingN(i))
+      Line(jtsGeom.getInteriorRingN(i).clone.asInstanceOf[jts.LineString])
   }.toArray
 
   /** Returns true if this Polygon contains holes */
@@ -121,12 +132,6 @@ case class Polygon(jtsGeom: jts.Polygon) extends Geometry
   lazy val vertexCount: Int = jtsGeom.getNumPoints
 
   /**
-   * Returns the minimum extent that contains this Polygon.
-   */
-  lazy val envelope: Extent =
-    jtsGeom.getEnvelopeInternal
-
-  /**
    * Returns this Polygon's perimeter.
    * A Polygon's perimeter is the length of its exterior and interior
    * boundaries.
@@ -134,22 +139,31 @@ case class Polygon(jtsGeom: jts.Polygon) extends Geometry
   lazy val perimeter: Double =
     jtsGeom.getLength
 
-
   // -- Intersection
 
   /**
    * Computes a Result that represents a Geometry made up of the points shared
    * by this Polygon and p.
    */
-  def &(p: Point): PointGeometryIntersectionResult =
+  def &(p: Point): PointOrNoResult =
     intersection(p)
 
   /**
    * Computes a Result that represents a Geometry made up of the points shared
    * by this Polygon and p.
    */
-  def intersection(p: Point): PointGeometryIntersectionResult =
+  def intersection(p: Point): PointOrNoResult =
     jtsGeom.intersection(p.jtsGeom)
+
+  /**
+   * Computes a Result that represents a Geometry made up of the points shared
+   * by this Polygon and g. If it fails, it reduces the precision to avoid [[TopologyException]].
+   */
+  def safeIntersection(p: Point): PointOrNoResult =
+    try intersection(p)
+    catch {
+      case _: TopologyException => simplifier.reduce(jtsGeom).intersection(simplifier.reduce(p.jtsGeom))
+    }
 
   /**
    * Computes a Result that represents a Geometry made up of the points shared
@@ -167,6 +181,16 @@ case class Polygon(jtsGeom: jts.Polygon) extends Geometry
 
   /**
    * Computes a Result that represents a Geometry made up of the points shared
+   * by this Polygon and g. If it fails, it reduces the precision to avoid [[TopologyException]].
+   */
+  def safeIntersection(mp: MultiPoint): MultiPointAtLeastOneDimensionIntersectionResult =
+    try intersection(mp)
+    catch {
+      case _: TopologyException => simplifier.reduce(jtsGeom).intersection(simplifier.reduce(mp.jtsGeom))
+    }
+
+  /**
+   * Computes a Result that represents a Geometry made up of the points shared
    * by this Polygon and g.
    */
   def &(g: OneDimension): OneDimensionAtLeastOneDimensionIntersectionResult =
@@ -178,6 +202,16 @@ case class Polygon(jtsGeom: jts.Polygon) extends Geometry
    */
   def intersection(g: OneDimension): OneDimensionAtLeastOneDimensionIntersectionResult =
     jtsGeom.intersection(g.jtsGeom)
+
+  /**
+   * Computes a Result that represents a Geometry made up of the points shared
+   * by this Polygon and g. If it fails, it reduces the precision to avoid [[TopologyException]].
+   */
+  def safeIntersection(g: OneDimension): OneDimensionAtLeastOneDimensionIntersectionResult =
+    try intersection(g)
+    catch {
+      case _: TopologyException => simplifier.reduce(jtsGeom).intersection(simplifier.reduce(g.jtsGeom))
+    }
 
   /**
    * Computes a Result that represents a Geometry made up of the points shared
@@ -193,6 +227,15 @@ case class Polygon(jtsGeom: jts.Polygon) extends Geometry
   def intersection(g: TwoDimensions): TwoDimensionsTwoDimensionsIntersectionResult =
     jtsGeom.intersection(g.jtsGeom)
 
+  /**
+   * Computes a Result that represents a Geometry made up of the points shared
+   * by this Polygon and g. If it fails, it reduces the precision to avoid [[TopologyException]].
+   */
+  def safeIntersection(g: TwoDimensions): TwoDimensionsTwoDimensionsIntersectionResult =
+    try intersection(g)
+    catch {
+      case _: TopologyException => simplifier.reduce(jtsGeom).intersection(simplifier.reduce(g.jtsGeom))
+    }
 
   // -- Union
 
@@ -223,8 +266,8 @@ case class Polygon(jtsGeom: jts.Polygon) extends Geometry
    * else falls back to default jts union method.
    */
   def union(g: TwoDimensions): TwoDimensionsTwoDimensionsUnionResult = g match {
-    case p:Polygon => Seq(this, p).unioned
-    case mp:MultiPolygon => Seq(MultiPolygon(this), mp).unioned
+    case p:Polygon => Seq(this, p).unionGeometries
+    case mp:MultiPolygon => (this +: mp.polygons).toSeq.unionGeometries
     case _ => jtsGeom.union(g.jtsGeom)
   }
 

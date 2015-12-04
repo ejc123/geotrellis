@@ -1,7 +1,8 @@
 package geotrellis.gdal
 
 import geotrellis.raster._
-import geotrellis.raster.io.geotiff.reader.GeoTiffReader
+import geotrellis.raster.io.geotiff._
+import geotrellis.proj4._
 
 import org.scalatest._
 
@@ -13,7 +14,7 @@ class GdalReaderSpec extends FunSpec with Matchers {
       println("Reading with GDAL...")
       val (gdRaster, RasterExtent(gdExt,_, _, _, _)) = GdalReader.read(path)
       println("Reading with GeoTools....")
-      val (gtRaster, gtExt, _) = GeoTiffReader(path).read().imageDirectories.head.toRaster
+      val Raster(gtRaster, gtExt) = SingleBandGeoTiff(path).raster
       println("Done.")
 
       gdExt.xmin should be (gtExt.xmin +- 0.00001)
@@ -38,6 +39,11 @@ class GdalReaderSpec extends FunSpec with Matchers {
           }
         }
       }
+    }
+
+    it("should read CRS from file") {
+      val rasterDataSet = Gdal.open("raster-test/data/geotiff-test-files/all-ones.tif")
+      rasterDataSet.crs should equal (Some(LatLng))
     }
   }
 }

@@ -1,12 +1,12 @@
 /*
  * Copyright (c) 2014 Azavea.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,7 +19,7 @@ package geotrellis.engine.op.zonal.summary
 import geotrellis.engine._
 import geotrellis.raster._
 import geotrellis.raster.op.zonal.summary._
-import geotrellis.raster.stats._
+import geotrellis.raster.histogram.Histogram
 import geotrellis.raster.rasterize._
 import geotrellis.vector._
 
@@ -28,68 +28,56 @@ import spire.syntax.cfor._
 
 trait ZonalSummaryRasterSourceMethods extends RasterSourceMethods {
   def mapIntersecting[B, That](p: Polygon)
-                              (handleTileIntersection: TileIntersection=>B): DataSource[B, _] =
-    _mapIntersecting(p, None)(handleTileIntersection)
+                              (handler: TileIntersectionHandler[B]): DataSource[B, _] =
+    _mapIntersecting(p, None)(handler.handleFullTile)(handler.handlePartialTile)
 
   def mapIntersecting[B, That](p: Polygon, fullTileResults: DataSource[B, _])
-                               (handleTileIntersection: TileIntersection=>B): DataSource[B, _] = 
-    _mapIntersecting(p, Some(fullTileResults))(handleTileIntersection)
+                               (handler: TileIntersectionHandler[B]): DataSource[B, _] =
+    _mapIntersecting(p, Some(fullTileResults))(handler.handleFullTile)(handler.handlePartialTile)
 
   def mapIntersecting[B, That](p: Polygon, fullTileResults: Option[DataSource[B, _]])
-                               (handleTileIntersection: TileIntersection=>B): DataSource[B, _] = 
-    _mapIntersecting(p, fullTileResults)(handleTileIntersection)
+                               (handler: TileIntersectionHandler[B]): DataSource[B, _] =
+    _mapIntersecting(p, fullTileResults)(handler.handleFullTile)(handler.handlePartialTile)
 
 
-  private 
+  private
   def _mapIntersecting[B, That](p: Polygon, fullTileResults: Option[DataSource[B, _]])
-                                (handleTileIntersection: TileIntersection=>B): DataSource[B, _] = {
-    val newOp = 
+                                (handleFullTile: Tile => B)(handlePartialTile: (Raster, Polygon) => B): DataSource[B, _] = {
+    val newOp =
       (rasterSource.rasterDefinition, rasterSource.tiles).map { (rd, tiles) =>
         val tileExtents = TileExtents(rd.rasterExtent.extent, rd.tileLayout)
         val tileCols = rd.tileLayout.layoutCols
         val tileRows = rd.tileLayout.layoutRows
         val filtered = mutable.ListBuffer[Op[B]]()
 
-        val handleFullTile: Int => Op[B] =
+        val _handleFullTile: Int => Op[B] =
           fullTileResults match {
             case Some(cached) =>
               { (i: Int) => cached.elements.flatMap(_(i)) }
             case None =>
-              { (i: Int) => 
-                tiles(i).map { t =>
-                  handleTileIntersection(FullTileIntersection(t))
+              { (i: Int) =>
+                tiles(i).map { t: Tile =>
+                  handleFullTile(t)
                 }
               }
           }
 
-        cfor(0)(_ < tileCols, _ + 1) { col =>
-          cfor(0)(_ < tileRows, _ + 1) { row =>
+        cfor(0)(_ < tileRows, _ + 1) { row =>
+          cfor(0)(_ < tileCols, _ + 1) { col =>
             val extent = tileExtents(col, row)
 
             if(p.contains(extent)) {
-              filtered += handleFullTile(row*tileCols + col)
+              filtered += _handleFullTile(row*tileCols + col)
             } else {
               p.intersection(extent) match {
                 case PolygonResult(intersectionPoly) =>
                   filtered += tiles(row * tileCols + col).map { t =>
-                    handleTileIntersection(
-                      PartialTileIntersection(
-                        t, 
-                        extent,
-                        intersectionPoly
-                      )
-                    )
+                    handlePartialTile(Raster(t, extent), intersectionPoly)
                   }
                 case MultiPolygonResult(mp) =>
                   for(p <- mp.polygons) {
                     filtered += tiles(row*tileCols + col).map { t =>
-                      val pti =
-                        PartialTileIntersection(
-                          t,
-                          extent,
-                          p
-                        )
-                      handleTileIntersection(pti)
+                      handlePartialTile(Raster(t, extent), p)
                     }
                   }
                 case _ => //No match? No Problem!
@@ -103,11 +91,11 @@ trait ZonalSummaryRasterSourceMethods extends RasterSourceMethods {
     SeqSource(newOp)
   }
 
-  def zonalSummary[T, U](
-    handler: TileIntersectionHandler[T, U], 
-    p: Polygon, 
+  def zonalSummary[T](
+    handler: TileIntersectionHandler[T],
+    p: Polygon,
     cachedResult: Option[DataSource[T, _]]
-  ): ValueSource[U] =
+  ): ValueSource[T] =
     mapIntersecting(p, cachedResult)(handler)
       .converge(handler.combineResults)
 
@@ -154,8 +142,8 @@ trait ZonalSummaryRasterSourceMethods extends RasterSourceMethods {
     zonalSummary(MaxDouble, p, Some(cached))
 
   def zonalMean(p: Polygon): ValueSource[Double] =
-    zonalSummary(Mean, p, None)
+    zonalSummary(Mean, p, None).map(_.mean)
 
   def zonalMean(p: Polygon, cached: DataSource[MeanResult, _]): ValueSource[Double] =
-    zonalSummary(Mean, p, Some(cached))
+    zonalSummary(Mean, p, Some(cached)).map(_.mean)
 }

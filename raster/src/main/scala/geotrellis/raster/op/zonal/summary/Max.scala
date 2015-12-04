@@ -4,25 +4,21 @@ import geotrellis.raster._
 import geotrellis.vector._
 import geotrellis.raster.rasterize._
 
-object Max extends TileIntersectionHandler[Int, Int] {
-  def handlePartialTile(pt: PartialTileIntersection): Int = {
-    val PartialTileIntersection(tile, _, polygon) = pt
-    val rasterExtent = pt.rasterExtent
+object Max extends TileIntersectionHandler[Int] {
+  def handlePartialTile(raster: Raster, polygon: Polygon): Int = {
+    val Raster(tile, _) = raster
+    val rasterExtent = raster.rasterExtent
     var max = NODATA
-    Rasterizer.foreachCellByGeometry(polygon, rasterExtent)(
-      new Callback {
-        def apply(col: Int, row: Int) {
-          val z = tile.get(col, row)
-          if (isData(z) && (z > max || isNoData(max)) ) { max = z }
-        }
-      }
-    )
+    Rasterizer.foreachCellByGeometry(polygon, rasterExtent) { (col: Int, row: Int) =>
+      val z = tile.get(col, row)
+      if (isData(z) && (z > max || isNoData(max)) ) { max = z }
+    }
     max
   }
 
-  def handleFullTile(ft: FullTileIntersection): Int = {
+  def handleFullTile(tile: Tile): Int = {
     var max = NODATA
-    ft.tile.foreach { (x: Int) =>
+    tile.foreach { (x: Int) =>
       if (isData(x) && (x > max || isNoData(max))) { max = x }
     }
     max
@@ -38,26 +34,21 @@ object Max extends TileIntersectionHandler[Int, Int] {
       }
 }
 
-object MaxDouble extends TileIntersectionHandler[Double, Double] {
-  def handlePartialTile(pt: PartialTileIntersection): Double = {
-    val PartialTileIntersection(tile, _, polygon) = pt
-    val rasterExtent = pt.rasterExtent
+object MaxDouble extends TileIntersectionHandler[Double] {
+  def handlePartialTile(raster: Raster, polygon: Polygon): Double = {
+    val Raster(tile, _) = raster
+    val rasterExtent = raster.rasterExtent
     var max = Double.NaN
-    Rasterizer.foreachCellByGeometry(polygon, rasterExtent)(
-      new Callback {
-        def apply(col: Int, row: Int) {
-          val z = tile.getDouble(col, row)
-          if (isData(z) && (z > max || isNoData(max))) { max = z }
-        }
-      }
-    )
-
+    Rasterizer.foreachCellByGeometry(polygon, rasterExtent) { (col: Int, row: Int) =>
+      val z = tile.getDouble(col, row)
+      if (isData(z) && (z > max || isNoData(max))) { max = z }
+    }
     max
   }
 
-  def handleFullTile(ft: FullTileIntersection): Double = {
+  def handleFullTile(tile: Tile): Double = {
     var max = Double.NaN
-    ft.tile.foreachDouble { (x: Double) =>
+    tile.foreachDouble { (x: Double) =>
       if (isData(x) && (x > max || isNoData(max))) { max = x }
     }
     max

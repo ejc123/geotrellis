@@ -23,7 +23,7 @@ import geotrellis.engine._
 import geotrellis.engine.op.local._
 import geotrellis.engine.stats._
 import geotrellis.raster._
-import geotrellis.raster.stats._
+import geotrellis.raster.histogram._
 
 import com.typesafe.config.ConfigFactory
 import akka.actor.{ ActorRef, Props, Actor, ActorSystem }
@@ -58,7 +58,7 @@ import akka.cluster.ClusterEvent.MemberUp
 import akka.serialization._
 
 class RemoteClientApplication extends Bootable {
-  val server = new Engine("remoteEngine", Catalog.fromPath("raster-test/data/catalog.json"))
+  val server = new Engine("remoteEngine", Catalog.fromPath("../raster-test/data/catalog.json"))
   val router = server.getRouter()
 
   def startup() {

@@ -17,8 +17,6 @@
 package geotrellis.spark.op.local
 
 import geotrellis.spark._
-import geotrellis.spark.io.hadoop._
-import geotrellis.spark.RasterRDD
 import geotrellis.spark.testfiles._
 
 import org.scalatest.FunSpec
@@ -38,7 +36,7 @@ class LocalSpec extends FunSpec
       val evo1Minus1 = EveryOther1ElseMinus1TestFile
 
       val (cols: Int, rows: Int) = {
-        val tile = ones.stitch
+        val tile = ones.stitch.tile
         (tile.cols, tile.rows)
       }
 

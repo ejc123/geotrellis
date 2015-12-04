@@ -16,7 +16,6 @@
 
 package geotrellis.raster
 
-import geotrellis._
 import geotrellis.vector.Extent
 
 object TileLayout {
@@ -46,10 +45,19 @@ case class TileLayout(layoutCols: Int, layoutRows: Int, tileCols: Int, tileRows:
    */
   def totalRows: Long = layoutRows.toLong * tileRows
 
-  def tileDimensions: (Int, Int) = (layoutCols, layoutRows)
+  def layoutDimensions: (Int, Int) = (layoutCols, layoutRows)
 
   def tileSize: Int = tileCols * tileRows
     
   def cellSize(extent: Extent): CellSize = 
     CellSize(extent.width / totalCols, extent.height / totalRows)
+
+  def combine(other: TileLayout) = {
+    val maxLayoutCols = if(layoutCols > other.layoutCols) layoutCols else other.layoutCols
+    val maxLayoutRows = if(layoutRows > other.layoutRows) layoutRows else other.layoutRows
+    val maxTileCols   = if(tileCols > other.tileCols) tileCols else other.tileCols
+    val maxTileRows   = if(tileRows > other.tileRows) tileRows else other.tileRows
+
+    TileLayout(maxLayoutCols, maxLayoutRows, maxTileCols, maxTileRows)
+  }
 }

@@ -5,7 +5,7 @@ import geotrellis.spark.io.hadoop._
 import geotrellis.spark.testfiles._
 
 import geotrellis.raster._
-import geotrellis.raster.stats._
+import geotrellis.raster.histogram.Histogram
 
 import geotrellis.vector._
 
@@ -21,6 +21,7 @@ class HistogramSpec extends FunSpec
     with RasterRDDBuilders {
 
   describe("Histogram Zonal Operation") {
+
     ifCanRunSpark {
 
       it("gives correct histogram for example raster rdds") {
@@ -38,7 +39,8 @@ class HistogramSpec extends FunSpec
 
             7, 7, 5,  5, 5, 4,  3, 4, 2,
             7, 2, 2,  5, 4, 4,  3, 4, 4), 9, 8),
-          3, 2, 3, 4)
+          TileLayout(3, 4, 3, 2)
+        )
 
         val zonesRDD = createRasterRDD(
           sc,
@@ -54,10 +56,11 @@ class HistogramSpec extends FunSpec
 
             2, 2, 2,  7, 7, 7,  7, 8, 8,
             2, 2, 2,  7, 7, 7,  7, 8, 8), 9, 8),
-          3, 2, 3, 4)
+          TileLayout(3, 4, 3, 2)
+        )
 
-        val r = rdd.stitch
-        val zones = zonesRDD.stitch
+        val r = rdd.stitch.tile
+        val zones = zonesRDD.stitch.tile
         val (cols, rows) = (r.cols, r.rows)
 
         val zoneValues = mutable.Map[Int, mutable.ListBuffer[Int]]()

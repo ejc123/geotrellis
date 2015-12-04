@@ -16,9 +16,10 @@
 
 package geotrellis.vector
 
-import GeomFactory._
-
+import reflect.runtime.universe._
 import com.vividsolutions.jts.{geom => jts}
+
+import GeomFactory._
 
 object GeometryCollection {
   implicit def jtsToGeometryCollection(gc: jts.GeometryCollection): GeometryCollection =
@@ -72,19 +73,29 @@ class GeometryCollection(
     val jtsGeom: jts.GeometryCollection
   ) extends Geometry {
 
+  def geometries: Seq[Geometry] =
+    points ++ lines ++ polygons ++ multiPoints ++ multiLines ++ multiPolygons ++ geometryCollections 
+
   /** Returns a unique representation of the geometry based on standard coordinate ordering. */
-  def normalized(): GeometryCollection = { jtsGeom.normalize ; GeometryCollection(jtsGeom) }
+  def normalized(): GeometryCollection = { 
+    val geom = jtsGeom.clone.asInstanceOf[jts.GeometryCollection]
+    geom.normalize
+    GeometryCollection(geom)
+  }
+
+  def getAll[G <: Geometry: TypeTag]: Seq[G] =
+    typeOf[G] match {
+      case x if x <:< typeOf[Point] => points.asInstanceOf[Seq[G]]
+      case x if x <:< typeOf[Line] => lines.asInstanceOf[Seq[G]]
+      case x if x <:< typeOf[Polygon] => polygons.asInstanceOf[Seq[G]]
+      case x if x <:< typeOf[MultiPoint] => multiPoints.asInstanceOf[Seq[G]]
+      case x if x <:< typeOf[MultiLine] => multiLines.asInstanceOf[Seq[G]]
+      case x if x <:< typeOf[MultiPolygon] => multiPolygons.asInstanceOf[Seq[G]]
+      case x if x <:< typeOf[GeometryCollection] => geometryCollections.asInstanceOf[Seq[G]]
+    }
 
   lazy val area: Double =
     jtsGeom.getArea
-
-  /**
-   * Returns the minimum extent that contains all the geometries in
-   * this GeometryCollection.
-   */
-  lazy val envelope: Extent =
-    if(jtsGeom.isEmpty) Extent(0.0, 0.0, 0.0, 0.0)
-    else jtsGeom.getEnvelopeInternal
 
   override def equals(that: Any): Boolean = {
     that match {

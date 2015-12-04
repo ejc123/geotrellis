@@ -23,12 +23,54 @@ import com.esotericsoftware.kryo.Kryo
 
 class KryoRegistrator extends SparkKryoRegistrator {
   override def registerClasses(kryo: Kryo) {
-    kryo.register(classOf[SpatialKeyWritable])
-    kryo.register(classOf[TileWritable])
+    kryo.register(classOf[(_,_)])
+    kryo.register(classOf[::[_]])
+    kryo.register(classOf[geotrellis.spark.io.hadoop.SpatialKeyWritable])
+    kryo.register(classOf[geotrellis.spark.io.hadoop.SpaceTimeKeyWritable])
+    kryo.register(classOf[geotrellis.spark.io.hadoop.TileWritable])
+    kryo.register(classOf[geotrellis.raster.BitArrayTile])
+    kryo.register(classOf[geotrellis.raster.ByteArrayFiller])
+    kryo.register(classOf[geotrellis.raster.FloatArrayTile])
+    kryo.register(classOf[geotrellis.raster.DoubleArrayTile])
+    kryo.register(classOf[geotrellis.raster.ShortArrayTile])
+    kryo.register(classOf[geotrellis.raster.IntArrayTile])
     kryo.register(classOf[org.apache.accumulo.core.client.impl.ConnectorImpl])
     kryo.register(classOf[org.apache.accumulo.core.client.mock.MockConnector])
     kryo.register(classOf[geotrellis.spark.SpatialKey])
     kryo.register(classOf[geotrellis.spark.SpaceTimeKey])
-    kryo.register(classOf[org.joda.time.DateTime])
+    kryo.register(classOf[org.joda.time.DateTime], new de.javakaffee.kryoserializers.jodatime.JodaDateTimeSerializer)
+    kryo.register(classOf[org.joda.time.Interval], new de.javakaffee.kryoserializers.jodatime.JodaIntervalSerializer)
+    kryo.register(classOf[geotrellis.spark.io.index.rowmajor.RowMajorSpatialKeyIndex])
+    kryo.register(classOf[geotrellis.spark.io.index.zcurve.ZSpatialKeyIndex])
+    kryo.register(classOf[geotrellis.spark.io.index.zcurve.ZSpaceTimeKeyIndex])
+    kryo.register(classOf[geotrellis.spark.io.index.hilbert.HilbertSpatialKeyIndex])
+    kryo.register(classOf[geotrellis.spark.io.index.hilbert.HilbertSpaceTimeKeyIndex])
+    kryo.register(classOf[geotrellis.vector.ProjectedExtent])
+    kryo.register(classOf[geotrellis.vector.Extent])
+    kryo.register(classOf[geotrellis.proj4.CRS])
+
+    // de.javakaffee.kryoserializers.UnmodifiableCollectionsSerializer.registerSerializers(kryo)
+    import java.util._
+    import de.javakaffee.kryoserializers._
+
+    kryo.register( Arrays.asList( "" ).getClass, new ArraysAsListSerializer )
+    kryo.register( Collections.EMPTY_LIST.getClass, new CollectionsEmptyListSerializer() )
+    kryo.register( Collections.EMPTY_MAP.getClass(), new CollectionsEmptyMapSerializer() )
+    kryo.register( Collections.EMPTY_SET.getClass(), new CollectionsEmptySetSerializer() )
+    kryo.register( Collections.singletonList( "" ).getClass(), new CollectionsSingletonListSerializer )
+    kryo.register( Collections.singleton( "" ).getClass(), new CollectionsSingletonSetSerializer )
+    kryo.register( Collections.singletonMap( "", "" ).getClass(), new CollectionsSingletonMapSerializer )
+    kryo.register(geotrellis.spark.op.focal.Center.getClass)
+    kryo.register(geotrellis.spark.op.focal.Top.getClass)
+    kryo.register(geotrellis.spark.op.focal.Bottom.getClass)
+    kryo.register(geotrellis.spark.op.focal.Left.getClass)
+    kryo.register(geotrellis.spark.op.focal.Right.getClass)
+    kryo.register(geotrellis.spark.op.focal.TopLeft.getClass)
+    kryo.register(geotrellis.spark.op.focal.TopRight.getClass)
+    kryo.register(geotrellis.spark.op.focal.BottomLeft.getClass)
+    kryo.register(geotrellis.spark.op.focal.BottomRight.getClass)
+
+    UnmodifiableCollectionsSerializer.registerSerializers( kryo )
+    SynchronizedCollectionsSerializer.registerSerializers( kryo )
   }
 }

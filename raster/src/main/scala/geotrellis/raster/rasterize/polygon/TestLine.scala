@@ -3,10 +3,10 @@ package geotrellis.raster.rasterize.polygon
 import geotrellis.raster.RasterExtent
 import geotrellis.vector._
 
-case class TestLine(rowMin: Int, rowMax: Int, x0:Double, y0:Double, x1:Double, y1:Double, inverseSlope: Double) {
-  def horizontal:Boolean = rowMin == rowMax
+case class TestLine(rowMin: Int, rowMax: Int, x0: Double, y0: Double, x1: Double, y1: Double, inverseSlope: Double) {
+  def horizontal: Boolean = rowMin == rowMax
   
-  def intercept(y:Double) =
+  def intercept(y: Double) =
     x0 + (y - y0) * inverseSlope
 }
 
@@ -18,7 +18,7 @@ case class TestLineSet(testLines: Seq[TestLine], rowMin: Int, rowMax: Int) {
 object TestLineSet {
   lazy val EMPTY = TestLineSet(Seq(), Int.MaxValue, Int.MinValue)
 
-  def apply(line: Line, re: RasterExtent): TestLineSet = {
+  def apply(line: Line, re: RasterExtent, includeExterior: Boolean = false): TestLineSet = {
     var rowMin = Int.MaxValue
     var rowMax = Int.MinValue
 
@@ -26,7 +26,7 @@ object TestLineSet {
       line
         .points
         .sliding(2)
-        .map { l =>
+        .flatMap { l =>
           val p1 = l(0)
           val p2 = l(1)
 
@@ -36,14 +36,18 @@ object TestLineSet {
             } else {
               (p2.x, p2.y, p1.x, p1.y)
             }
-          
-          val minRowDouble = re.mapYToGridDouble(y1)
-          val maxRowDouble = re.mapYToGridDouble(y0)
 
-          val minRow = (math.floor(re.mapYToGridDouble(y1) + 0.5)).toInt
-          val maxRow = (math.floor(re.mapYToGridDouble(y0) - 0.5)).toInt
+        val (minRow, maxRow) = 
+          if (includeExterior) {
+            (math.floor(re.mapYToGridDouble(y1)).toInt,
+             math.ceil(re.mapYToGridDouble(y0)).toInt)
+          } else {
+            (math.floor(re.mapYToGridDouble(y1) + 0.5).toInt,
+             math.floor(re.mapYToGridDouble(y0) - 0.5).toInt)
 
-          val inverseSlope = (x1 - x0).toDouble / (y1 - y0).toDouble
+          }
+
+          val inverseSlope = (x1 - x0) / (y1 - y0)
 
           if (minRow > maxRow ||
               p1.y == p2.y ||
@@ -58,7 +62,6 @@ object TestLineSet {
             Some(TestLine(minRow, maxRow, x0, y0, x1, y1, inverseSlope))
           }
          }
-        .flatten
         .toList
     
     TestLineSet(testLines, rowMin, rowMax)

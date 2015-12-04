@@ -1,12 +1,12 @@
 /*
  * Copyright (c) 2014 Azavea.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,13 +18,13 @@ package geotrellis.raster.render
 
 import geotrellis.raster._
 import geotrellis.vector.Extent
-import geotrellis.raster.stats._
+import geotrellis.raster.op.stats._
 
 import org.scalatest._
 
 import geotrellis.testkit._
 
-class GetColorBreaksSpec extends FunSpec 
+class GetColorBreaksSpec extends FunSpec
                             with TestEngine
                             with Matchers {
   describe("GetColorBreaks") {
@@ -46,6 +46,14 @@ class GetColorBreaksSpec extends FunSpec
       val colorBreaks = ColorBreaks(h, colors)
       colorBreaks.limits should be (Array(12, 15, 66, 95))
       colorBreaks.colors should be (Array(g, y, o, r))
+    }
+
+    it("can come from a string.") {
+      val goodString = "12:00ff00ff;15:ffff00ff"
+      ColorBreaks.fromStringInt(goodString) should not be empty
+
+      val badString = "12:0bad_data0ff00ff;15:ffff00ff"
+      ColorBreaks.fromStringInt(badString) shouldBe empty
     }
   }
 }

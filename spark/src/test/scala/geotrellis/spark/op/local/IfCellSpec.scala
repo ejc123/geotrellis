@@ -34,7 +34,7 @@ class IfCellSpec extends FunSpec
       val dec = DecreasingTestFile
 
       val (cols: Int, rows: Int, tots: Int) = {
-        val tile = inc.stitch
+        val tile = inc.stitch.tile
         (tile.cols, tile.rows, tile.cols * tile.rows - 1)
       }
 
@@ -43,7 +43,7 @@ class IfCellSpec extends FunSpec
 
         rasterShouldBe(
           res,
-          (x: Int, y: Int) => if ((y * cols + x) % 2 == 0) 1 else y * cols + x
+          (x: Int, y: Int) => if ((y * cols + x) % 2 == 0) 1 else y * cols + x 
         )
 
         rastersShouldHaveSameIdsAndTileCount(res, inc)

@@ -18,7 +18,7 @@ package geotrellis.engine.op.zonal.summary
 
 import geotrellis.raster._
 import geotrellis.raster.op.zonal.summary._
-import geotrellis.raster.stats._
+import geotrellis.raster.histogram._
 import geotrellis.vector._
 import geotrellis.engine._
 import geotrellis.testkit._
@@ -67,13 +67,13 @@ class ZonalSummaryRasterSourceMethodsSpec extends FunSpec
 //       *  *  *    *  *  *    *  *  *
 //       *  *  0    X  X  X    *  *  *
 // 
-//       *  *  0    X  X  X    X  0  *
+//       *  *  0    X  X  X    X  X  *
 //       *  *  *    *  *  *    *  *  *  
 // 
 
   val containedCells = Seq(
     (3,1),(4,1),(5,1),
-    (3,2),(4,2),(5,2),(6,2)
+    (3,2),(4,2),(5,2),(6,2),(7,2)
   )
 
   describe("zonalHistogram") {

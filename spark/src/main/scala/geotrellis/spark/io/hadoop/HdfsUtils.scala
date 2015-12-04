@@ -82,7 +82,11 @@ object HdfsUtils extends Logging {
       }
     }
 
-    addFiles(fs.globStatus(path))
+    val globStatus = fs.globStatus(path)
+    if (globStatus == null)
+      throw new IOException(s"No matching file(s) for path: $path")
+
+    addFiles(globStatus)
     files.toList
   }
 
@@ -126,12 +130,21 @@ object HdfsUtils extends Logging {
         LocalPath.Original(path)
       case _ =>
         val tmp = HdfsUtils.createTempFile(conf, "local-copy")
-        val fs = tmp.getFileSystem(conf)
+        val fs = path.getFileSystem(conf)
         fs.copyToLocalFile(path, tmp)
         LocalPath.Temporary(tmp)
     }
 
   def createRandomString(size: Int): String = Random.alphanumeric.take(size).mkString
+
+  def tmpPath(base: Path, prefix: String, conf: Configuration) = {
+    val fs = base.getFileSystem(conf)
+    var path: Path = null
+    do {
+      path = new Path(base, s"$prefix-${createRandomString(10)}")
+    } while ( fs.exists(path) )
+    path
+  }
 
   def getLineScanner(path: String, conf: Configuration): Option[LineScanner] =
     getLineScanner(new Path(path), conf)

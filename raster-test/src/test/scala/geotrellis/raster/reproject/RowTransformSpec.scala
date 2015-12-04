@@ -3,19 +3,19 @@ package geotrellis.raster.reproject
 import geotrellis.raster._
 import geotrellis.vector._
 import geotrellis.vector.reproject._
-import geotrellis.vector.json._
+import geotrellis.vector.io.json._
 import geotrellis.testkit._
 import geotrellis.proj4._
 import geotrellis.testkit.vector._
-import geotrellis.raster.io.geotiff.reader._
+import geotrellis.raster.io.geotiff._
 
 import org.scalatest._
 
 import spire.syntax.cfor._
 
 class RowTransformSpec extends FunSpec
-                          with TileBuilders
-                          with TestEngine {
+    with TileBuilders
+    with TestEngine {
   val path = "raster-test/data/schoolgeo.json"
 
   val LLtoWM = Transform(LatLng, WebMercator)
@@ -62,8 +62,9 @@ class RowTransformSpec extends FunSpec
     }
 
     it("should approximate WebMercator -> LatLng for raster extent") {
-      val (expected, expectedExtent, _) =
-        GeoTiffReader("raster-test/data/reproject/slope_wsg84-nearestneighbor.tif").read.imageDirectories.head.toRaster
+      val Raster(expected, expectedExtent) = 
+        SingleBandGeoTiff("raster-test/data/reproject/slope_wsg84-nearestneighbor.tif").raster
+
       val re = RasterExtent(expected, expectedExtent)
 
       val threshold = ReprojectOptions.DEFAULT.errorThreshold
@@ -91,8 +92,9 @@ class RowTransformSpec extends FunSpec
     }
 
     it("should approximate EPSG:32618 -> WebMercator for raster extent") {
-      val (expected, expectedExtent, _) =
-        GeoTiffReader("raster-test/data/reproject/slope_epsg32618.tif").read.imageDirectories.head.toRaster
+      val Raster(expected, expectedExtent) = 
+        SingleBandGeoTiff("raster-test/data/reproject/slope_epsg32618.tif").raster
+
       val re = RasterExtent(expected, expectedExtent)
 
       val threshold = ReprojectOptions.DEFAULT.errorThreshold

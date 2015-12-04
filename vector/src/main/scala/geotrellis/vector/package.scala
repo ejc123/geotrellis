@@ -17,12 +17,20 @@
 package geotrellis
 
 import com.vividsolutions.jts.{geom => jts}
-import com.vividsolutions.jts.operation.union.{CascadedPolygonUnion => jtsCascadedPolygonUnion}
 
 import scala.collection.mutable
 import scala.collection.JavaConversions._
 
-package object vector extends op.LineDissolve.Implicits {
+package object vector extends SeqMethods {
+
+  type PointFeature[D] = Feature[Point, D]
+  type LineFeature[D] = Feature[Line, D]
+  type PolygonFeature[D] = Feature[Polygon, D]
+  type MultiPointFeature[D] = Feature[MultiPoint, D]
+  type MultiLineFeature[D] = Feature[MultiLine, D]
+  type MultiPolygonFeature[D] = Feature[MultiPolygon, D]
+  type GeometryCollectionFeature[D] = Feature[GeometryCollection, D]
+
 
   implicit def tupleOfIntToPoint(t: (Double, Double)): Point =
     Point(t._1,t._2)
@@ -89,10 +97,13 @@ package object vector extends op.LineDissolve.Implicits {
   }
 
   implicit def seqPointToMultiPoint(ps: Seq[Point]): MultiPoint = MultiPoint(ps)
+  implicit def arrayPointToMultiPoint(ps: Array[Point]): MultiPoint = MultiPoint(ps)
 
   implicit def seqLineToMultiLine(ps: Seq[Line]): MultiLine = MultiLine(ps)
+  implicit def arrayLineToMultiLine(ps: Array[Line]): MultiLine = MultiLine(ps)
 
   implicit def seqPolygonToMultiPolygon(ps: Seq[Polygon]): MultiPolygon = MultiPolygon(ps)
+  implicit def arrayPolygonToMultiPolygon(ps: Array[Polygon]): MultiPolygon = MultiPolygon(ps)
 
   implicit def seqGeometryToGeometryCollection(gs: Seq[Geometry]): GeometryCollection = {
     val points = mutable.ListBuffer[Point]()
@@ -119,20 +130,4 @@ package object vector extends op.LineDissolve.Implicits {
                        multiPoints, multiLines, multiPolygons,
                        geometryCollections)
   }
-
-  implicit def featureToGeometry(f: Feature[_]): Geometry = f.geom
-
-  trait PolygonUnion {
-    val geoms:Seq[Geometry]
-
-    def unioned: TwoDimensionsTwoDimensionsUnionResult = {
-      val cascadedPolygonUnion = new jtsCascadedPolygonUnion(geoms.map(geom => geom.jtsGeom))
-      cascadedPolygonUnion.union()
-    }
-  }
-
-  implicit class CascadedPolygonUnion(val geoms: Seq[Polygon]) extends PolygonUnion
-
-  implicit class CascadedMultiPolygonUnion(val geoms: Seq[MultiPolygon]) extends PolygonUnion
-
 }

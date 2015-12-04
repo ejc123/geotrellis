@@ -1,22 +1,5 @@
-/*
- * Copyright (c) 2014 Azavea.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * 
- * http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package geotrellis.raster
 
-import geotrellis._
 import geotrellis.vector.Extent
 
 import spire.syntax.cfor._
@@ -40,26 +23,18 @@ final case class ShortArrayTile(array: Array[Short], cols: Int, rows: Int)
     pixels
   }
 
-  def warp(current: Extent, target: RasterExtent): ArrayTile = {
-    val warped = Array.ofDim[Short](target.cols * target.rows).fill(shortNODATA)
-    Warp[Short](RasterExtent(current, cols, rows), target, array, warped)
-    ShortArrayTile(
-      warped,
-      target.cols,
-      target.rows
-    )
-  }
+  def copy = ArrayTile(array.clone, cols, rows)
 }
 
 object ShortArrayTile {
-  def ofDim(cols: Int, rows: Int): ShortArrayTile = 
-    new ShortArrayTile(Array.ofDim[Short](cols * rows), cols, rows)
-
-  def empty(cols: Int, rows: Int): ShortArrayTile = 
-    new ShortArrayTile(Array.ofDim[Short](cols * rows).fill(shortNODATA), cols, rows)
-
   def fill(v: Short, cols: Int, rows: Int): ShortArrayTile =
     new ShortArrayTile(Array.ofDim[Short](cols * rows).fill(v), cols, rows)
+
+  def ofDim(cols: Int, rows: Int): ShortArrayTile =
+    new ShortArrayTile(Array.ofDim[Short](cols * rows), cols, rows)
+
+  def empty(cols: Int, rows: Int): ShortArrayTile =
+    new ShortArrayTile(Array.ofDim[Short](cols * rows).fill(shortNODATA), cols, rows)
 
   def fromBytes(bytes: Array[Byte], cols: Int, rows: Int): ShortArrayTile = {
     val byteBuffer = ByteBuffer.wrap(bytes, 0, bytes.length)
@@ -70,8 +45,8 @@ object ShortArrayTile {
     ShortArrayTile(shortArray, cols, rows)
   }
 
-  def fromBytes(bytes: Array[Byte], cols: Int, rows: Int, replaceNoData: Short): ShortArrayTile = 
-    if(isNoData(replaceNoData))
+  def fromBytes(bytes: Array[Byte], cols: Int, rows: Int, replaceNoData: Short): ShortArrayTile =
+    if (isNoData(replaceNoData))
       fromBytes(bytes, cols, rows)
     else {
       val byteBuffer = ByteBuffer.wrap(bytes, 0, bytes.length)
@@ -85,7 +60,7 @@ object ShortArrayTile {
         else
           shortArray(i) = v
       }
-
       ShortArrayTile(shortArray, cols, rows)
     }
 }
+

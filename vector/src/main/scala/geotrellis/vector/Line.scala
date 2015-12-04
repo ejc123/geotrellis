@@ -57,7 +57,11 @@ case class Line(jtsGeom: jts.LineString) extends Geometry
   assert(!jtsGeom.isEmpty, s"LineString Empty: $jtsGeom")
 
   /** Returns a unique representation of the geometry based on standard coordinate ordering. */
-  def normalized(): Line = { jtsGeom.normalize ; Line(jtsGeom) }
+  def normalized(): Line = { 
+    val geom = jtsGeom.clone.asInstanceOf[jts.LineString]
+    geom.normalize
+    Line(geom)
+  }
 
   /** Tests if the initial vertex equals the final vertex. */
   lazy val isClosed: Boolean =
@@ -86,7 +90,7 @@ case class Line(jtsGeom: jts.LineString) extends Geometry
     val size = jtsGeom.getNumPoints
     val arr = Array.ofDim[Point](size)
     cfor(0)(_ < arr.size, _ + 1) { i =>
-      val p = jtsGeom.getPointN(i)
+      val p = jtsGeom.getPointN(i).clone.asInstanceOf[jts.Point]
       arr(i) = Point(p)
     }
     arr
@@ -94,12 +98,6 @@ case class Line(jtsGeom: jts.LineString) extends Geometry
 
   /** Get the number of vertices in this geometry */
   lazy val vertexCount: Int = jtsGeom.getNumPoints
-
-  /**
-   * Returns the minimum extent that contains this Line.
-   */
-  lazy val envelope: Extent =
-    jtsGeom.getEnvelopeInternal
 
   /** Returns the length of this Line. */
   lazy val length: Double =
@@ -118,14 +116,14 @@ case class Line(jtsGeom: jts.LineString) extends Geometry
    * Computes a Result that represents a Geometry made up of the points shared
    * by this Line and p.
    */
-  def &(p: Point): PointGeometryIntersectionResult =
+  def &(p: Point): PointOrNoResult =
     intersection(p)
 
   /**
    * Computes a Result that represents a Geometry made up of the points shared
    * by this Line and p.
    */
-  def intersection(p: Point): PointGeometryIntersectionResult =
+  def intersection(p: Point): PointOrNoResult =
     jtsGeom.intersection(p.jtsGeom)
 
   /**

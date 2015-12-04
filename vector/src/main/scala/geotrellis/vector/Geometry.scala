@@ -17,13 +17,16 @@
 package geotrellis.vector
 
 import com.vividsolutions.jts.{geom => jts}
+import com.vividsolutions.jts.geom.TopologyException
+import GeomFactory._
 import geotrellis.proj4.CRS
 
 trait Geometry {
 
-  val jtsGeom: jts.Geometry
+  def jtsGeom: jts.Geometry
 
-//  assert(jtsGeom.isValid, s"Geometry is invalid: $this")
+  def isValid: Boolean =
+    jtsGeom.isValid
 
   def distance(other: Geometry): Double =
     jtsGeom.distance(other.jtsGeom)
@@ -36,6 +39,28 @@ trait Geometry {
 
   def interiorPoint: PointOrNoResult =
     jtsGeom.getInteriorPoint
+
+  def envelope: Extent =
+    if(jtsGeom.isEmpty) Extent(0.0, 0.0, 0.0, 0.0)
+    else jtsGeom.getEnvelopeInternal
+
+  def &(g: Geometry): TwoDimensionsTwoDimensionsIntersectionResult =
+    intersection(g)
+  /**
+   * Computes a Result that represents a Geometry made up of the points shared
+   * by this Polygon and g.
+   */
+  def intersection(g: Geometry): TwoDimensionsTwoDimensionsIntersectionResult =
+    jtsGeom.intersection(g.jtsGeom)
+  /**
+   * Computes a Result that represents a Geometry made up of the points shared
+   * by this Polygon and g. If it fails, it reduces the precision to avoid [[TopologyException]].
+   */
+  def safeIntersection(g: Geometry): TwoDimensionsTwoDimensionsIntersectionResult =
+    try intersection(g)
+    catch {
+      case _: TopologyException => simplifier.reduce(jtsGeom).intersection(simplifier.reduce(g.jtsGeom))
+    }
 
   override
   def equals(other: Any): Boolean =
@@ -55,7 +80,7 @@ object Geometry {
    * Wraps JTS Geometry in correct container and attempts to cast.
    * Useful when sourcing objects from JTS interface.
    */
-  def fromJts[G <: Geometry](obj: jts.Geometry): G = {
+  def apply[G <: Geometry](obj: jts.Geometry): G = {
     obj match {
       case obj: jts.Point => Point(obj)
       case obj: jts.LineString => Line(obj)

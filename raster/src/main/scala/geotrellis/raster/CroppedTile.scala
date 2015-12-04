@@ -1,12 +1,12 @@
 /*
  * Copyright (c) 2014 Azavea.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,6 +16,7 @@
 
 package geotrellis.raster
 
+import geotrellis.raster.resample._
 import geotrellis.vector.Extent
 
 import spire.syntax.cfor._
@@ -29,15 +30,15 @@ object CroppedTile {
       sourceTile,
       RasterExtent(
         sourceExtent,
-        sourceTile.cols, 
+        sourceTile.cols,
         sourceTile.rows
       ).gridBoundsFor(targetExtent)
     )
 }
 
 case class CroppedTile(sourceTile: Tile,
-                       gridBounds: GridBounds)
-  extends Tile {
+                       override val gridBounds: GridBounds) extends Tile {
+
   val cols = gridBounds.width
   val rows = gridBounds.height
 
@@ -47,6 +48,9 @@ case class CroppedTile(sourceTile: Tile,
   private val rowMin = gridBounds.rowMin
   private val sourceCols = sourceTile.cols
   private val sourceRows = sourceTile.rows
+
+  def convert(cellType: CellType): Tile =
+    LazyConvertedArrayTile(this, cellType)
 
   def get(col: Int, row: Int): Int = {
     val c = col + gridBounds.colMin
@@ -69,7 +73,9 @@ case class CroppedTile(sourceTile: Tile,
     }
   }
 
-  def toArrayTile: ArrayTile = {
+  def toArrayTile: ArrayTile = mutable
+
+  def mutable(): MutableArrayTile = {
     val tile = ArrayTile.alloc(cellType, cols, rows)
 
     if(!cellType.isFloatingPoint) {
@@ -119,6 +125,40 @@ case class CroppedTile(sourceTile: Tile,
 
   def toBytes(): Array[Byte] = toArrayTile.toBytes
 
+  def foreach(f: Int => Unit): Unit = {
+    cfor(0)(_ < rows, _ + 1) { row =>
+      cfor(0)(_ < cols, _ + 1) { col =>
+        f(get(col, row))
+      }
+    }
+  }
+
+  def foreachDouble(f: Double => Unit): Unit = {
+    val tile = ArrayTile.alloc(cellType, cols, rows)
+
+    cfor(0)(_ < rows, _ + 1) { row =>
+      cfor(0)(_ < cols, _ + 1) { col =>
+        f(getDouble(col, row))
+      }
+    }
+  }
+
+  def foreachIntVisitor(visitor: IntTileVisitor): Unit = {
+    cfor(0)(_ < rows, _ + 1) { row =>
+      cfor(0)(_ < cols, _ + 1) { col =>
+        visitor(col, row, get(col, row))
+      }
+    }
+  }
+
+  def foreachDoubleVisitor(visitor: DoubleTileVisitor): Unit = {
+    cfor(0)(_ < rows, _ + 1) { row =>
+      cfor(0)(_ < cols, _ + 1) { col =>
+        visitor(col, row, getDouble(col, row))
+      }
+    }
+  }
+
   def map(f: Int => Int): Tile = {
     val tile = ArrayTile.alloc(cellType, cols, rows)
 
@@ -131,6 +171,38 @@ case class CroppedTile(sourceTile: Tile,
     tile
   }
 
+  def mapDouble(f: Double => Double): Tile = {
+    val tile = ArrayTile.alloc(cellType, cols, rows)
+
+    cfor(0)(_ < rows, _ + 1) { row =>
+      cfor(0)(_ < cols, _ + 1) { col =>
+        tile.setDouble(col, row, f(getDouble(col, row)))
+      }
+    }
+
+    tile
+  }
+
+  def mapIntMapper(mapper: IntTileMapper): Tile = {
+    val tile = ArrayTile.alloc(cellType, cols, rows)
+    cfor(0)(_ < rows, _ + 1) { row =>
+      cfor(0)(_ < cols, _ + 1) { col =>
+        tile.set(col, row, mapper(col, row, get(col, row)))
+      }
+    }
+    tile
+  }
+
+  def mapDoubleMapper(mapper: DoubleTileMapper): Tile = {
+    val tile = ArrayTile.alloc(cellType, cols, rows)
+    cfor(0)(_ < rows, _ + 1) { row =>
+      cfor(0)(_ < cols, _ + 1) { col =>
+        tile.setDouble(col, row, mapper(col, row, getDouble(col, row)))
+      }
+    }
+    tile
+  }
+
   def combine(other: Tile)(f: (Int, Int) => Int): Tile = {
     (this, other).assertEqualDimensions
 
@@ -138,18 +210,6 @@ case class CroppedTile(sourceTile: Tile,
     cfor(0)(_ < rows, _ + 1) { row =>
       cfor(0)(_ < cols, _ + 1) { col =>
         tile.set(col, row, f(get(col, row), other.get(col, row)))
-      }
-    }
-
-    tile
-  }
-
-  def mapDouble(f: Double =>Double): Tile = {
-    val tile = ArrayTile.alloc(cellType, cols, rows)
-
-    cfor(0)(_ < rows, _ + 1) { row =>
-      cfor(0)(_ < cols, _ + 1) { col =>
-        tile.setDouble(col, row, f(getDouble(col, row)))
       }
     }
 
@@ -168,7 +228,4 @@ case class CroppedTile(sourceTile: Tile,
 
     tile
   }
-
-  def warp(source: Extent, target: RasterExtent): Tile = 
-    toArrayTile.warp(source, target)
 }

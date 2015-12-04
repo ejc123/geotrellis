@@ -17,15 +17,16 @@
 package geotrellis.spark
 
 import geotrellis.raster._
-import geotrellis.spark.ingest._
-import geotrellis.vector.Extent
+import geotrellis.spark.io.ContainerConstructor
 import org.apache.spark.SparkContext._
 import org.apache.spark._
 import org.apache.spark.rdd._
+import spray.json.JsonFormat
 
 import scala.reflect.ClassTag
 
-class RasterRDD[K: ClassTag](val tileRdd: RDD[(K, Tile)], val metaData: RasterMetaData) extends RDD[(K, Tile)](tileRdd) {
+class RasterRDD[K: ClassTag](val tileRdd: RDD[(K, Tile)], val metaData: RasterMetaData)
+  extends BoundRDD[K, Tile](tileRdd) {
   override val partitioner = tileRdd.partitioner
 
   override def getPartitions: Array[Partition] = firstParent[(K, Tile)].partitions
@@ -33,29 +34,40 @@ class RasterRDD[K: ClassTag](val tileRdd: RDD[(K, Tile)], val metaData: RasterMe
   override def compute(split: Partition, context: TaskContext) =
     firstParent[(K, Tile)].iterator(split, context)
 
-  def mapTiles(f: ((K, Tile)) => (K, Tile)): RasterRDD[K] =
+  def convert(cellType: CellType): RasterRDD[K] =
+    mapTiles(_.convert(cellType))
+
+  def reduceByKey(f: (Tile, Tile) => Tile): RasterRDD[K] =
+    asRasterRDD(metaData) { tileRdd.reduceByKey(f) }
+
+
+  def mapKeys[R: ClassTag](f: K => R): RasterRDD[R] =
     asRasterRDD(metaData) {
-      mapPartitions({ partition =>
-        partition.map { tile =>
-          f(tile)
-        }
-      }, true)
+      tileRdd map { case (key, tile) => f(key) -> tile }
     }
 
-  def combineTiles[R: ClassTag](other: RasterRDD[K])(f: ((K, Tile), (K, Tile)) => (R, Tile)): RasterRDD[R] =
+  def mapTiles(f: Tile => Tile): RasterRDD[K] =
     asRasterRDD(metaData) {
-      zipPartitions(other, true) { (partition1, partition2) =>
-        partition1.zip(partition2).map {
-          case (tile1, tile2) =>
-            f(tile1, tile2)
-        }
-      }
+      tileRdd map { case (key, tile) => key -> f(tile) }
     }
 
-  def combineTiles(others: Seq[RasterRDD[K]])(f: (Seq[(K, Tile)] => (K, Tile))): RasterRDD[K] = {
-    def create(t: (K, Tile)) = Seq(t)
-    def mergeValue(ts: Seq[(K, Tile)], t: (K, Tile)) = ts :+ t
-    def mergeContainers(ts1: Seq[(K, Tile)], ts2: Seq[(K, Tile)]) = ts1 ++ ts2
+  def mapPairs[R: ClassTag](f: ((K, Tile)) => (R, Tile)): RasterRDD[R] =
+    asRasterRDD(metaData) {
+      tileRdd map { row => f(row) }
+    }
+
+  def combineTiles(other: RasterRDD[K])(f: (Tile, Tile) => Tile): RasterRDD[K] =
+    combinePairs(other) { case ((k1, t1), (k2, t2)) => (k1, f(t1, t2)) }
+
+  def combinePairs[R: ClassTag](other: RasterRDD[K])(f: ((K, Tile), (K, Tile)) => (R, Tile)): RasterRDD[R] =
+    asRasterRDD(metaData) {
+      this.join(other).map { case (key, (tile1, tile2)) => f((key, tile1), (key, tile2)) }
+    }
+
+  def combinePairs(others: Traversable[RasterRDD[K]])(f: (Traversable[(K, Tile)] => (K, Tile))): RasterRDD[K] = {
+    def create(t: (K, Tile)) = List(t)
+    def mergeValue(ts: List[(K, Tile)], t: (K, Tile)) = ts :+ t
+    def mergeContainers(ts1: List[(K, Tile)], ts2: Traversable[(K, Tile)]) = ts1 ++ ts2
 
     asRasterRDD(metaData) {
       (this :: others.toList)
@@ -66,6 +78,13 @@ class RasterRDD[K: ClassTag](val tileRdd: RDD[(K, Tile)], val metaData: RasterMe
         .map { case (id, tiles) => f(tiles) }
     }
   }
+
+  def asRasters()(implicit sc: SpatialComponent[K]): RDD[(K, Raster)] =
+    mapPartitions({ part =>
+      part.map { case (key, tile) =>
+        (key, Raster(tile, metaData.mapTransform(key)))
+      }
+    }, true)
 
   def minMax: (Int, Int) =
     map(_.tile.findMinMax)
@@ -86,8 +105,44 @@ class RasterRDD[K: ClassTag](val tileRdd: RDD[(K, Tile)], val metaData: RasterMe
           }
         (min, max)
       }
+
+  def minMaxDouble: (Double, Double) =
+    map(_.tile.findMinMaxDouble)
+      .reduce { (t1, t2) =>
+        val (min1, max1) = t1
+        val (min2, max2) = t2
+        val min =
+          if(isNoData(min1)) min2
+          else {
+            if(isNoData(min2)) min1
+            else math.min(min1, min2)
+          }
+        val max =
+          if(isNoData(max1)) max2
+          else {
+            if(isNoData(max2)) max1
+            else math.max(max1, max2)
+          }
+        (min, max)
+      }
+
 }
 
 object RasterRDD {
-  implicit class SpatialRasterRDD(val rdd: RasterRDD[SpatialKey]) extends RasterRDDSpatialMethods
+  implicit class SpatialRasterRDD(val rdd: RasterRDD[SpatialKey]) extends SpatialRasterRDDMethods
+
+  implicit def constructor[K: JsonFormat : ClassTag] =
+    new ContainerConstructor[K, Tile, RasterRDD[K]] {
+      type MetaDataType = RasterMetaData
+      implicit def metaDataFormat = geotrellis.spark.io.json.RasterMetaDataFormat
+
+      def getMetaData(raster: RasterRDD[K]): RasterMetaData =
+        raster.metaData
+
+      def makeContainer(rdd: RDD[(K, Tile)], bounds: KeyBounds[K], metadata: MetaDataType) =
+        new RasterRDD(rdd, metadata)
+
+      def combineMetaData(that: MetaDataType, other: MetaDataType): MetaDataType =
+        that.combine(other)
+    }
 }

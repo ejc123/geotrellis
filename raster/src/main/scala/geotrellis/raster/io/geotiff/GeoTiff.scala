@@ -1,23 +1,34 @@
 package geotrellis.raster.io.geotiff
 
-import geotrellis.proj4.CRS
 import geotrellis.raster._
+import geotrellis.raster.io.geotiff.reader.GeoTiffReader
+import geotrellis.raster.io.geotiff.writer.GeoTiffWriter
 import geotrellis.vector.Extent
+import geotrellis.proj4.CRS
+
+trait GeoTiff {
+  def imageData: GeoTiffImageData
+  def extent: Extent
+  def crs: CRS
+  def tags: Tags
+
+  def write(path: String): Unit =
+    GeoTiffWriter.write(this, path)
+
+  def toByteArray: Array[Byte] =
+    GeoTiffWriter.write(this)
+}
 
 object GeoTiff {
+  def apply(tile: Tile, extent: Extent, crs: CRS): SingleBandGeoTiff =
+    SingleBandGeoTiff(tile, extent, crs)
 
-  def render(tile: Tile, extent: Extent, crs: CRS, compression: Compression): Array[Byte] = {
-    val settings = tile.cellType match {
-      case TypeBit | TypeByte => Settings(ByteSample, Signed, compression)
-      case TypeShort => Settings(ShortSample, Signed, compression)
-      case TypeInt => Settings(IntSample, Signed, compression)
-      case TypeFloat => Settings(IntSample, Floating, compression)
-      case TypeDouble => Settings(LongSample, Floating, compression)
-    }
+  def apply(raster: Raster, crs: CRS): SingleBandGeoTiff =
+    apply(raster.tile, raster.extent, crs)
 
-    val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
+  def apply(tile: MultiBandTile, extent: Extent, crs: CRS): MultiBandGeoTiff =
+    MultiBandGeoTiff(tile, extent, crs)
 
-    Encoder.writeBytes(tile, rasterExtent, crs, settings)
-  }
-
+  def apply(raster: MultiBandRaster, crs: CRS): MultiBandGeoTiff =
+    apply(raster.tile, raster.extent, crs)
 }

@@ -3,6 +3,7 @@ package geotrellis.spark.op.zonal.summary
 import geotrellis.spark._
 import geotrellis.spark.io.hadoop._
 import geotrellis.spark.testfiles._
+import geotrellis.raster.op.zonal.summary._
 
 import geotrellis.vector._
 
@@ -15,7 +16,9 @@ class MaxDoubleSpec extends FunSpec
     with OnlyIfCanRunSpark {
 
   describe("Max Double Zonal Summary Operation") {
+
     ifCanRunSpark {
+
       val inc = IncreasingTestFile
 
       val tileLayout = inc.metaData.tileLayout
@@ -37,9 +40,36 @@ class MaxDoubleSpec extends FunSpec
           totalExtent.ymin + yd / 2
         )
 
-        val res = count - tileLayout.tileCols * 1.5 - 1
-        // TODO: How to get number of tmsTiles in width / height?
-        inc.zonalMaxDouble(quarterExtent.toPolygon) should be(res)
+        val result = inc.zonalMaxDouble(quarterExtent.toPolygon)
+        val expected = inc.stitch.tile.zonalMaxDouble(totalExtent, quarterExtent.toPolygon)
+
+        result should be (expected)
+      }
+
+      it("should get correct double max over a two triangle multipolygon") {
+        val xd = totalExtent.xmax - totalExtent.xmin / 4
+        val yd = totalExtent.ymax - totalExtent.ymin / 4
+
+        val tri1 = Polygon( 
+          (totalExtent.xmin + (xd / 2), totalExtent.ymax - (yd / 2)),
+          (totalExtent.xmin + (xd / 2) + xd, totalExtent.ymax - (yd / 2)),
+          (totalExtent.xmin + (xd / 2) + xd, totalExtent.ymax - (yd)),
+          (totalExtent.xmin + (xd / 2), totalExtent.ymax - (yd / 2))
+        )
+
+        val tri2 = Polygon( 
+          (totalExtent.xmax - (xd / 2), totalExtent.ymin + (yd / 2)),
+          (totalExtent.xmax - (xd / 2) - xd, totalExtent.ymin + (yd / 2)),
+          (totalExtent.xmax - (xd / 2) - xd, totalExtent.ymin + (yd)),
+          (totalExtent.xmax - (xd / 2), totalExtent.ymin + (yd / 2))
+        )
+
+        val mp = MultiPolygon(tri1, tri2)
+
+        val result = inc.zonalMaxDouble(mp)
+        val expected = inc.stitch.tile.zonalMaxDouble(totalExtent, mp)
+
+        result should be (expected)
       }
     }
   }

@@ -16,7 +16,9 @@
 
 package geotrellis.raster
 
-import geotrellis._
+import geotrellis.vector._
+
+import spire.syntax.cfor._
 
 /**
  * MutableArrayTile is an ArrayTile whose cells can be written to
@@ -33,5 +35,20 @@ trait MutableArrayTile extends ArrayTile {
   }
   def setDouble(col:Int, row:Int, value:Double) {
     updateDouble(row * cols + col, value)
+  }
+  def update(colOffset:Int, rowOffset:Int, update: Tile): Unit = {
+    if (this.cellType.isFloatingPoint) {
+      cfor(0)(_ < update.rows, _ + 1) { r =>
+        cfor(0)(_ < update.cols, _ + 1) { c =>
+          setDouble(c + colOffset, r + rowOffset, update.getDouble(c, r))
+        }
+      }      
+    } else {
+      cfor(0)(_ < update.rows, _ + 1) { r =>
+        cfor(0)(_ < update.cols, _ + 1) { c =>
+          set(c + colOffset, r + rowOffset, update.get(c, r))
+        }
+      }      
+    }
   }
 }

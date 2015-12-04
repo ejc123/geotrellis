@@ -3,6 +3,7 @@ package geotrellis.spark.op.zonal.summary
 import geotrellis.spark._
 import geotrellis.spark.io.hadoop._
 import geotrellis.spark.testfiles._
+import geotrellis.raster.op.zonal.summary._
 
 import geotrellis.vector._
 
@@ -15,7 +16,9 @@ class MinDoubleSpec extends FunSpec
     with OnlyIfCanRunSpark {
 
   describe("Min Double Zonal Summary Operation") {
+
     ifCanRunSpark {
+
       val inc = IncreasingTestFile
 
       val tileLayout = inc.metaData.tileLayout
@@ -36,7 +39,11 @@ class MinDoubleSpec extends FunSpec
           totalExtent.xmin + xd / 2,
           totalExtent.ymin + yd / 2
         )
-        inc.zonalMinDouble(quarterExtent.toPolygon) should be(count / 2)
+
+        val result = inc.zonalMinDouble(quarterExtent.toPolygon)
+        val expected = inc.stitch.tile.zonalMinDouble(totalExtent, quarterExtent.toPolygon)
+
+        result should be (expected)
       }
     }
   }

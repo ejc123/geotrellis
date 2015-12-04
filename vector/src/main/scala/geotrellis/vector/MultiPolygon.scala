@@ -17,7 +17,7 @@
 package geotrellis.vector
 
 import GeomFactory._
-import geotrellis.vector._
+import com.vividsolutions.jts.geom.TopologyException
 
 import com.vividsolutions.jts.{geom => jts}
 
@@ -32,6 +32,16 @@ object MultiPolygon {
   def apply(ps: Traversable[Polygon]): MultiPolygon =
     MultiPolygon(factory.createMultiPolygon(ps.map(_.jtsGeom).toArray))
 
+  def apply(ps: Array[Polygon]): MultiPolygon = {
+    val len = ps.length
+    val arr = Array.ofDim[jts.Polygon](len)
+    cfor(0)(_ < len, _ + 1) { i =>
+      arr(i) = ps(i).jtsGeom
+    }
+
+    MultiPolygon(factory.createMultiPolygon(arr))
+  }
+
   implicit def jts2MultiPolygon(jtsGeom: jts.MultiPolygon): MultiPolygon = apply(jtsGeom)
 }
 
@@ -40,12 +50,16 @@ case class MultiPolygon(jtsGeom: jts.MultiPolygon) extends MultiGeometry
                                                    with TwoDimensions {
 
   /** Returns a unique representation of the geometry based on standard coordinate ordering. */
-  def normalized(): MultiPolygon = { jtsGeom.normalize ; MultiPolygon(jtsGeom) }
+  def normalized(): MultiPolygon = { 
+    val geom = jtsGeom.clone.asInstanceOf[jts.MultiPolygon]
+    geom.normalize
+    MultiPolygon(geom)
+  }
 
   /** Returns the Polygons contained in MultiPolygon. */
   lazy val polygons: Array[Polygon] = {
     for (i <- 0 until jtsGeom.getNumGeometries) yield {
-      Polygon(jtsGeom.getGeometryN(i).asInstanceOf[jts.Polygon])
+      Polygon(jtsGeom.getGeometryN(i).clone.asInstanceOf[jts.Polygon])
     }
   }.toArray
 
@@ -71,25 +85,50 @@ case class MultiPolygon(jtsGeom: jts.MultiPolygon) extends MultiGeometry
 
   // -- Intersection
 
-  def &(p: Point): PointGeometryIntersectionResult =
+  def intersection(): MultiPolygonMultiPolygonIntersectionResult =
+    polygons.map(_.jtsGeom).reduce[jts.Geometry] {
+      _.intersection(_)
+    }
+
+  def &(p: Point): PointOrNoResult =
     intersection(p)
-  def intersection(p: Point): PointGeometryIntersectionResult =
+  def intersection(p: Point): PointOrNoResult =
     p.intersection(this)
+  def safeIntersection(p: Point): PointOrNoResult =
+    try intersection(p)
+    catch {
+      case _: TopologyException => simplifier.reduce(jtsGeom).intersection(simplifier.reduce(p.jtsGeom))
+    }
 
   def &(l: Line): OneDimensionAtLeastOneDimensionIntersectionResult =
     intersection(l)
   def intersection(l: Line): OneDimensionAtLeastOneDimensionIntersectionResult =
     l.intersection(this)
+  def safeIntersection(l: Line): OneDimensionAtLeastOneDimensionIntersectionResult =
+    try intersection(l)
+    catch {
+      case _: TopologyException => simplifier.reduce(jtsGeom).intersection(simplifier.reduce(l.jtsGeom))
+    }
 
   def &(g: TwoDimensions): TwoDimensionsTwoDimensionsIntersectionResult =
     intersection(g)
   def intersection(g: TwoDimensions): TwoDimensionsTwoDimensionsIntersectionResult =
     jtsGeom.intersection(g.jtsGeom)
+  def safeIntersection(g: TwoDimensions): TwoDimensionsTwoDimensionsIntersectionResult =
+    try intersection(g)
+    catch {
+      case _: TopologyException => simplifier.reduce(jtsGeom).intersection(simplifier.reduce(g.jtsGeom))
+    }
 
   def &(ls: MultiLine): OneDimensionAtLeastOneDimensionIntersectionResult =
     intersection(ls)
   def intersection(ls: MultiLine): OneDimensionAtLeastOneDimensionIntersectionResult =
     ls.intersection(this)
+  def safeIntersection(ls: MultiLine): OneDimensionAtLeastOneDimensionIntersectionResult =
+    try intersection(ls)
+    catch {
+      case _: TopologyException => simplifier.reduce(jtsGeom).intersection(simplifier.reduce(ls.jtsGeom))
+    }
 
   // -- Union
 
@@ -107,8 +146,9 @@ case class MultiPolygon(jtsGeom: jts.MultiPolygon) extends MultiGeometry
   def |(p: Polygon): TwoDimensionsTwoDimensionsUnionResult =
     union(p)
 
-  def union(p: Polygon): TwoDimensionsTwoDimensionsUnionResult =
-    Seq(this, MultiPolygon(p)).unioned
+  def union(p: Polygon): TwoDimensionsTwoDimensionsUnionResult = {
+    (this.polygons :+ p).toSeq.unionGeometries
+  }
 
   def |(ps: MultiPoint): LineMultiPolygonUnionResult =
     union(ps)
@@ -122,12 +162,17 @@ case class MultiPolygon(jtsGeom: jts.MultiPolygon) extends MultiGeometry
   def |(ps: MultiPolygon): TwoDimensionsTwoDimensionsUnionResult =
     union(ps)
   def union(ps: MultiPolygon): TwoDimensionsTwoDimensionsUnionResult =
-    Seq(this, ps).unioned
+    (this.polygons ++ ps.polygons).toSeq.unionGeometries
 
   def union: TwoDimensionsTwoDimensionsUnionResult =
-    polygons.toSeq.unioned
+    polygons.toSeq.unionGeometries
 
   // -- Difference
+
+  def difference(): MultiPolygonMultiPolygonDifferenceResult =
+    polygons.map(_.jtsGeom).reduce[jts.Geometry] {
+      _.difference(_)
+    }
 
   def -(p: Point): MultiPolygonXDifferenceResult =
     difference(p)
@@ -160,6 +205,11 @@ case class MultiPolygon(jtsGeom: jts.MultiPolygon) extends MultiGeometry
     jtsGeom.difference(ps.jtsGeom)
 
   // -- SymDifference
+
+  def symDifference(): MultiPolygonMultiPolygonSymDifferenceResult =
+    polygons.map(_.jtsGeom).reduce[jts.Geometry] {
+      _.symDifference(_)
+    }
 
   def symDifference(g: ZeroDimensions): PointMultiPolygonSymDifferenceResult =
     jtsGeom.symDifference(g.jtsGeom)

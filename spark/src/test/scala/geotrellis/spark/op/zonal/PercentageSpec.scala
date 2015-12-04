@@ -5,12 +5,15 @@ import geotrellis.spark.io.hadoop._
 import geotrellis.spark.testfiles._
 
 import geotrellis.raster._
+import geotrellis.raster.op.zonal._
 
 import geotrellis.vector._
 
 import org.scalatest.FunSpec
 
 import collection.immutable.HashMap
+
+import spire.syntax.cfor._
 
 class PercentageSpec extends FunSpec
     with TestEnvironment
@@ -20,6 +23,7 @@ class PercentageSpec extends FunSpec
     with RasterRDDBuilders {
 
   describe("Percentage Zonal Operation") {
+
     ifCanRunSpark {
 
       it("gives correct percentage for example raster rdds") {
@@ -37,7 +41,8 @@ class PercentageSpec extends FunSpec
 
             7, 7, 5,  5, 5, 4,  3, 4, 2,
             7, 2, 2,  5, 4, 4,  3, 4, 4), 9, 8),
-          3, 2, 3, 4)
+          TileLayout(3, 4, 3, 2)
+        )
 
         val zonesRDD = createRasterRDD(
           sc,
@@ -53,62 +58,21 @@ class PercentageSpec extends FunSpec
 
             2, 2, 2,  7, 7, 7,  7, 8, 8,
             2, 2, 2,  7, 7, 7,  7, 8, 8), 9, 8),
-          3, 2, 3, 4)
-
-        val expected = Map(
-          1 -> Map(
-            1 -> 33,
-            2 -> 44,
-            3 -> 22
-          ),
-          2 -> Map(
-            7 -> 47,
-            2 -> 13,
-            5 -> 33,
-            1 ->  7
-          ),
-          3 -> Map(
-            1 -> 8,
-            6 -> 50,
-            3 -> 25,
-            2 -> 17
-          ),
-          4 -> Map(
-            1 -> 17,
-            2 -> 33,
-            3 -> 50
-          ),
-          5 -> Map(
-            6 -> 100
-          ),
-          6 -> Map(
-            1 -> 17,
-            5 -> 83
-          ),
-          7 -> Map(
-            3 -> 25,
-            4 -> 33,
-            5 -> 42
-          ),
-          8 -> Map(
-            2 -> 33,
-            4 -> 67
-          )
+          TileLayout(3, 4, 3, 2)
         )
 
-        val result = rdd.zonalPercentage(zonesRDD).stitch
-        val r = rdd.stitch
-        val zones = zonesRDD.stitch
-        val (cols, rows) = (r.cols, r.rows)
+        val actual = rdd.zonalPercentage(zonesRDD).stitch.tile
+        val expected = rdd.stitch.tile.zonalPercentage(zonesRDD.stitch.tile)
 
-        for(col <- 0 until cols) {
-          for(row <- 0 until rows) {
-            val zone = zones.get(col, row)
-            val value = r.get(col, row)
-            val percentage = result.get(col, row)
-            withClue(s"Expected($zone)($value) = ${expected(zone)(value)}, Actual = $percentage") {
-              percentage should be (expected(zone)(value))
-            }
+        (actual.cols, actual.rows) should be (expected.cols, expected.rows)
+
+        val (cols, rows) = (actual.cols, actual.rows)
+
+        cfor(0)(_ < rows, _ + 1) { row =>
+          cfor(0)(_ < cols, _ + 1) { col =>
+            val actualValue = actual.getDouble(col, row)
+            val expectedValue = expected.getDouble(col, row)
+            actualValue should be (expectedValue)
           }
         }
       }
